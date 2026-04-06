@@ -1,0 +1,7 @@
+{
+  "name": "Help Pensão Alimentícia",
+  "description": "Especialistas em garantir o direito do seu filho. Atendimento humanizado e ágil para pensão alimentícia.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
