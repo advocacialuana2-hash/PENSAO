@@ -8,3 +8,7 @@ export const META_PIXEL_ID = env.VITE_META_PIXEL_ID || '';
 
 // Segundos até o redirecionamento automático para o WhatsApp após a qualificação.
 export const REDIRECT_DELAY_SECONDS = 4;
+
+// Nome e inscrição na OAB devem constar da publicidade (Código de Ética da OAB, art. 44). Vazio = linha omitida.
+export const BRAND_NAME = env.VITE_BRAND_NAME || '';
+export const OAB_INFO = env.VITE_OAB_INFO || '';

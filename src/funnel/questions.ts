@@ -1,13 +1,12 @@
 export type QuestionId =
-  | 'situacao'
-  | 'titulo'
-  | 'atraso'
-  | 'gestacao'
-  | 'indicios'
-  | 'idade'
-  | 'renda'
-  | 'advogado'
-  | 'honorarios';
+  | 'momento'
+  | 'vinculo'
+  | 'empregoAtual'
+  | 'semContribuir'
+  | 'contribuicoes'
+  | 'provasRurais'
+  | 'pedidoInss'
+  | 'advogado';
 
 export type Answers = Partial<Record<QuestionId, string>>;
 
@@ -27,111 +26,99 @@ export interface Question {
   showIf?: (answers: Answers) => boolean;
 }
 
-const isCase = (...cases: string[]) => (a: Answers) => cases.includes(a.situacao ?? '');
-const notCase = (...cases: string[]) => (a: Answers) => !cases.includes(a.situacao ?? '');
+const is = (id: QuestionId, ...values: string[]) => (a: Answers) => values.includes(a[id] ?? '');
 
 export const QUESTIONS: Question[] = [
   {
-    id: 'situacao',
-    title: 'Qual é a sua situação hoje?',
-    summaryLabel: 'Situação',
+    id: 'momento',
+    title: 'Você está grávida ou já teve o bebê?',
+    summaryLabel: 'Momento',
     options: [
-      { value: 'gravidez', label: 'Estou grávida e o pai não ajuda' },
-      { value: 'fixacao', label: 'O pai não paga pensão', hint: 'Ainda não tem acordo nem processo' },
-      { value: 'execucao', label: 'Ele atrasa ou não paga o combinado', hint: 'A pensão já foi definida' },
-      { value: 'revisao', label: 'O valor não dá para as despesas' },
+      { value: 'gravida', label: 'Estou grávida' },
+      { value: 'nasceu', label: 'Meu bebê já nasceu', hint: 'Há menos de 5 anos' },
+      { value: 'adocao', label: 'Adotei uma criança' },
+      { value: 'mais5', label: 'Meu filho tem mais de 5 anos' },
     ],
   },
   {
-    id: 'titulo',
-    title: 'Como a pensão foi definida?',
-    summaryLabel: 'Pensão definida',
-    showIf: isCase('execucao'),
+    id: 'vinculo',
+    title: 'Como você trabalhava?',
+    subtitle: 'Pense no período antes de engravidar ou durante a gravidez.',
+    summaryLabel: 'Trabalho',
     options: [
-      { value: 'judicial', label: 'Pelo juiz, em um processo' },
-      { value: 'extrajudicial', label: 'Em cartório, Defensoria ou Promotoria' },
-      { value: 'informal', label: 'Só combinamos entre nós' },
+      { value: 'clt', label: 'Com carteira assinada' },
+      { value: 'contribuinte', label: 'Pagava o INSS por conta própria', hint: 'MEI, autônoma ou carnê' },
+      { value: 'rural', label: 'No campo, na pesca ou no extrativismo' },
+      { value: 'nenhum', label: 'Nunca trabalhei registrada nem paguei o INSS' },
+    ],
+  },
+  {
+    id: 'empregoAtual',
+    title: 'Você ainda trabalha nessa empresa?',
+    summaryLabel: 'Emprego atual',
+    showIf: is('vinculo', 'clt'),
+    options: [
+      { value: 'sim', label: 'Sim, ainda trabalho lá' },
+      { value: 'demitidaGravida', label: 'Não, fui demitida grávida' },
+      { value: 'saiu', label: 'Não, saí antes da gravidez' },
+    ],
+  },
+  {
+    id: 'semContribuir',
+    title: 'Há quanto tempo você está sem trabalhar registrada ou sem pagar o INSS?',
+    subtitle: 'Conte até o nascimento do bebê. Se ainda está grávida, conte até hoje.',
+    summaryLabel: 'Tempo sem contribuir',
+    showIf: (a) => (a.vinculo === 'clt' && a.empregoAtual !== 'sim') || a.vinculo === 'contribuinte',
+    options: [
+      { value: 'contribuindo', label: 'Eu ainda pagava ou trabalhava' },
+      { value: 'menos1', label: 'Menos de 1 ano' },
+      { value: '1a2', label: 'De 1 a 2 anos' },
+      { value: '2a3', label: 'De 2 a 3 anos' },
+      { value: 'mais3', label: 'Mais de 3 anos' },
+    ],
+  },
+  {
+    id: 'contribuicoes',
+    title: 'Quantos meses você pagou o INSS, no total?',
+    summaryLabel: 'Meses pagos ao INSS',
+    showIf: is('vinculo', 'contribuinte'),
+    options: [
+      { value: '10mais', label: '10 meses ou mais' },
+      { value: 'menos10', label: 'Menos de 10 meses' },
       { value: 'naoSei', label: 'Não sei' },
     ],
   },
   {
-    id: 'atraso',
-    title: 'Há quanto tempo ele não paga?',
-    summaryLabel: 'Atraso',
-    showIf: isCase('execucao'),
+    id: 'provasRurais',
+    title: 'Você tem algum papel que mostra o trabalho no campo?',
+    subtitle: 'Por exemplo: declaração do sindicato, notas de venda, cadastro rural ou contrato de terra.',
+    summaryLabel: 'Provas do trabalho rural',
+    showIf: is('vinculo', 'rural'),
     options: [
-      { value: 'ate1', label: 'Menos de 1 mês' },
-      { value: '1a3', label: 'De 1 a 3 meses' },
-      { value: 'mais3', label: 'Mais de 3 meses' },
-      { value: 'parcial', label: 'Ele paga só uma parte' },
+      { value: 'sim', label: 'Sim, tenho' },
+      { value: 'algumas', label: 'Tenho alguns' },
+      { value: 'nao', label: 'Não tenho' },
     ],
   },
   {
-    id: 'gestacao',
-    title: 'De quantos meses você está?',
-    summaryLabel: 'Gestação',
-    showIf: isCase('gravidez'),
+    id: 'pedidoInss',
+    title: 'Você já pediu o salário-maternidade no INSS?',
+    summaryLabel: 'Pedido no INSS',
     options: [
-      { value: 'ate3', label: 'Até 3 meses' },
-      { value: '4a6', label: 'De 4 a 6 meses' },
-      { value: '7mais', label: '7 meses ou mais' },
-    ],
-  },
-  {
-    id: 'indicios',
-    title: 'Você consegue mostrar que vocês se relacionaram?',
-    subtitle: 'Conversas, fotos ou pessoas que sabiam do relacionamento já ajudam.',
-    summaryLabel: 'Provas do relacionamento',
-    showIf: isCase('gravidez'),
-    options: [
-      { value: 'sim', label: 'Sim' },
-      { value: 'algumas', label: 'Um pouco' },
-      { value: 'nao', label: 'Não' },
-    ],
-  },
-  {
-    id: 'idade',
-    title: 'Quantos anos tem seu filho ou filha?',
-    subtitle: 'Se tiver mais de um, pense no mais novo.',
-    summaryLabel: 'Idade do(a) filho(a)',
-    showIf: notCase('gravidez'),
-    options: [
-      { value: 'menor', label: 'Até 17 anos' },
-      { value: 'estudante', label: 'De 18 a 24 anos, estudando' },
-      { value: 'maior', label: '18 anos ou mais, sem estudar' },
-    ],
-  },
-  {
-    id: 'renda',
-    title: 'O pai trabalha com quê?',
-    summaryLabel: 'Trabalho do pai',
-    options: [
-      { value: 'clt', label: 'Tem carteira assinada' },
-      { value: 'servidor', label: 'É servidor, militar ou aposentado' },
-      { value: 'autonomo', label: 'Trabalha por conta própria ou faz bicos' },
-      { value: 'desempregado', label: 'Está desempregado' },
-      { value: 'naoSei', label: 'Não sei' },
+      { value: 'naoPediu', label: 'Ainda não pedi' },
+      { value: 'negado', label: 'Pedi e foi negado' },
+      { value: 'analise', label: 'Pedi e está em análise' },
+      { value: 'recebeu', label: 'Já recebi' },
     ],
   },
   {
     id: 'advogado',
-    title: 'Você já tem advogado(a) cuidando disso?',
-    subtitle: 'Vale também a Defensoria Pública.',
+    title: 'Algum advogado(a) já cuida desse pedido?',
     summaryLabel: 'Já tem advogado(a)',
     options: [
       { value: 'nao', label: 'Não' },
-      { value: 'trocar', label: 'Tenho, mas quero trocar' },
-      { value: 'sim', label: 'Tenho e vou continuar com ele(a)' },
-    ],
-  },
-  {
-    id: 'honorarios',
-    title: 'Nosso atendimento é particular, com pagamento facilitado. Tudo bem para você?',
-    summaryLabel: 'Atendimento particular',
-    options: [
-      { value: 'sim', label: 'Sim, tudo bem' },
-      { value: 'valores', label: 'Quero saber os valores antes' },
-      { value: 'nao', label: 'Não tenho como pagar advogado(a)' },
+      { value: 'trocar', label: 'Sim, mas quero trocar' },
+      { value: 'sim', label: 'Sim, e vou continuar com ele(a)' },
     ],
   },
 ];

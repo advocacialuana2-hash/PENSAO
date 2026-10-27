@@ -21,11 +21,11 @@ View your app in AI Studio: https://ai.studio/apps/b3b58858-b6dd-4034-92ef-d57b6
 
 ## Funil de captação
 
-Todos os botões da página abrem um quiz de qualificação. Leads qualificados seguem para o WhatsApp do escritório com o resumo do caso; os demais recebem orientação e não geram contato.
+Funil de salário-maternidade. Todos os botões da página abrem um teste de qualificação. Leads qualificados seguem para o WhatsApp do escritório com o resumo do caso; os demais recebem orientação e não geram contato.
 
 - Perguntas: `src/funnel/questions.ts`
 - Regras de qualificação, pontuação e mensagem: `src/funnel/qualify.ts`
 - UTMs, Pixel e webhook: `src/funnel/tracking.ts`
-- Roteiro de atendimento e fechamento on-line: `docs/PLAYBOOK_CAPTACAO_WHATSAPP.md`
+- Roteiro de atendimento e fechamento on-line: `docs/PLAYBOOK_SALARIO_MATERNIDADE.md`
 
-Configure `VITE_WHATSAPP_NUMBER`, `VITE_LEAD_WEBHOOK_URL` e `VITE_META_PIXEL_ID` em `.env.local`. Testes da lógica: `npm test`.
+Configure `VITE_WHATSAPP_NUMBER`, `VITE_LEAD_WEBHOOK_URL`, `VITE_META_PIXEL_ID`, `VITE_BRAND_NAME` e `VITE_OAB_INFO` em `.env.local`. Testes da lógica: `npm test`.

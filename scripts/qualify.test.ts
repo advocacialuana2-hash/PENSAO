@@ -9,59 +9,55 @@ import {
   visibleQuestions,
 } from '../src/funnel/qualify';
 
-test('execução com atraso longo e pai CLT é lead quente', () => {
-  const r = qualify({
-    situacao: 'execucao', titulo: 'judicial', atraso: 'mais3', idade: 'menor',
-    renda: 'clt', advogado: 'nao', honorarios: 'sim',
-  });
+test('ex-empregada há menos de 1 ano, bebê nascido e sem pedido é lead quente', () => {
+  const r = qualify({ momento: 'nasceu', vinculo: 'clt', empregoAtual: 'saiu', semContribuir: 'menos1', pedidoInss: 'naoPediu', advogado: 'nao' });
   assert.equal(r.qualified, true);
-  assert.equal(r.caseType, 'execucao');
+  assert.equal(r.caseType, 'desempregada');
   assert.equal(r.tier, 'quente');
-  assert.match(buildProtocol(r, () => 0), /^PA-EXA-AAAA$/);
+  assert.match(buildProtocol(r, () => 0), /^SM-DEA-AAAA$/);
 });
 
-test('acordo informal vira ação de alimentos, não execução', () => {
-  const r = qualify({ situacao: 'execucao', titulo: 'informal', atraso: '1a3', advogado: 'nao', honorarios: 'sim' });
-  assert.equal(r.caseType, 'fixacao');
-  assert.ok(r.flags.some((f) => f.includes('sem homologação')));
-});
-
-test('quem já tem advogado e quer continuar é desqualificado', () => {
+test('barra cada caso inviável antes de pedir dados pessoais', () => {
+  assert.equal(disqualification({ momento: 'mais5' }), 'prazo');
+  assert.equal(disqualification({ momento: 'nasceu', vinculo: 'nenhum' }), 'semVinculo');
+  assert.equal(disqualification({ momento: 'gravida', vinculo: 'clt', empregoAtual: 'sim' }), 'empregada');
+  assert.equal(disqualification({ momento: 'nasceu', vinculo: 'clt', empregoAtual: 'saiu', semContribuir: 'mais3' }), 'semQualidade');
+  assert.equal(disqualification({ pedidoInss: 'recebeu' }), 'jaRecebeu');
   assert.equal(disqualification({ advogado: 'sim' }), 'representado');
-  assert.equal(qualify({ situacao: 'fixacao', advogado: 'sim' }).qualified, false);
 });
 
-test('sem condição de pagar honorários é encaminhado à Defensoria', () => {
-  assert.equal(disqualification({ advogado: 'nao', honorarios: 'nao' }), 'gratuidade');
+test('cada perfil vê só as perguntas que importam, no máximo 6', () => {
+  const ids = (a: Parameters<typeof visibleQuestions>[0]) => visibleQuestions(a).map((q) => q.id);
+  const clt = ids({ vinculo: 'clt', empregoAtual: 'saiu' });
+  assert.ok(clt.includes('semContribuir') && !clt.includes('contribuicoes') && !clt.includes('provasRurais'));
+  const ci = ids({ vinculo: 'contribuinte' });
+  assert.ok(ci.includes('contribuicoes') && ci.includes('semContribuir') && !ci.includes('empregoAtual'));
+  const rural = ids({ vinculo: 'rural' });
+  assert.ok(rural.includes('provasRurais') && !rural.includes('semContribuir'));
+  for (const list of [clt, ci, rural]) assert.ok(list.length <= 6);
 });
 
-test('gestante pula a pergunta de idade e responde no máximo 6 perguntas', () => {
-  const g = visibleQuestions({ situacao: 'gravidez' }).map((q) => q.id);
-  assert.ok(g.includes('gestacao') && g.includes('indicios') && !g.includes('idade'));
-  assert.ok(g.length <= 6);
-  assert.ok(visibleQuestions({ situacao: 'fixacao' }).length <= 5);
+test('indeferimento e prorrogação do período de graça geram alertas para a equipe', () => {
+  const r = qualify({ momento: 'nasceu', vinculo: 'clt', empregoAtual: 'demitidaGravida', semContribuir: '1a2', pedidoInss: 'negado', advogado: 'nao' });
+  assert.ok(r.flags.some((f) => f.includes('indeferimento')));
+  assert.ok(r.flags.some((f) => /período de graça/i.test(f)));
+  assert.ok(r.flags.some((f) => f.includes('estabilidade')));
 });
 
-test('gestante no fim da gravidez é urgente e quente', () => {
-  const r = qualify({ situacao: 'gravidez', gestacao: '7mais', indicios: 'sim', renda: 'clt', advogado: 'nao', honorarios: 'sim' });
-  assert.equal(r.tier, 'quente');
-  assert.ok(r.flags.some((f) => f.startsWith('URGENTE')));
-});
-
-test('caso fraco fica frio, mas continua qualificado', () => {
-  const r = qualify({ situacao: 'revisao', idade: 'maior', renda: 'desempregado', advogado: 'nao', honorarios: 'valores' });
+test('rural sem documentos continua qualificada, com prioridade menor', () => {
+  const r = qualify({ momento: 'nasceu', vinculo: 'rural', provasRurais: 'nao', pedidoInss: 'naoPediu', advogado: 'nao' });
   assert.equal(r.qualified, true);
-  assert.equal(r.tier, 'frio');
+  assert.equal(r.caseType, 'rural');
+  assert.notEqual(r.tier, 'quente');
 });
 
-test('mensagem do WhatsApp traz protocolo e respostas, sem pontuação interna', () => {
-  const answers = { situacao: 'execucao', titulo: 'judicial', atraso: 'mais3', idade: 'menor', renda: 'clt', advogado: 'nao', honorarios: 'sim' };
-  const msg = buildWhatsAppMessage({ nome: 'Maria Silva', whatsapp: '11912345678', cidade: 'Campinas', uf: 'SP' }, answers, 'PA-EXA-K7Q2');
-  assert.match(msg, /Protocolo: PA-EXA-K7Q2/);
-  assert.match(msg, /• Atraso: Mais de 3 meses/);
-  assert.doesNotMatch(msg, /Já tem advogado|Atendimento particular/);
+test('mensagem do WhatsApp traz protocolo e respostas, sem dados internos', () => {
+  const answers = { momento: 'gravida', vinculo: 'contribuinte', semContribuir: 'contribuindo', contribuicoes: '10mais', pedidoInss: 'naoPediu', advogado: 'nao' };
+  const msg = buildWhatsAppMessage({ nome: 'Maria Silva', whatsapp: '11912345678', cidade: 'Campinas', uf: 'SP' }, answers, 'SM-CIA-K7Q2');
+  assert.match(msg, /Protocolo: SM-CIA-K7Q2/);
+  assert.match(msg, /• Meses pagos ao INSS: 10 meses ou mais/);
   assert.match(msg, /Campinas\/SP/);
-  assert.doesNotMatch(msg, /quente|pontua/i);
+  assert.doesNotMatch(msg, /advogado|quente|pontua/i);
 });
 
 test('valida celular brasileiro', () => {

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Lock, MessageCircle, ShieldCheck, X } from 'lucide-react';
-import { Answers, QuestionId } from './questions';
+import { Answers, QUESTIONS, QuestionId } from './questions';
 import {
   CASE_LABELS,
   DisqualifyReason,
@@ -20,9 +20,11 @@ import {
 import { REDIRECT_DELAY_SECONDS, WHATSAPP_NUMBER } from './config';
 import { getAttribution, sendLead, trackEvent } from './tracking';
 
+const FIRST_QUESTION = QUESTIONS[0].id;
+
 // --- Contexto: qualquer CTA da página abre o quiz ---
 
-// `preset` permite começar o quiz já com a situação escolhida na própria página.
+// `preset` permite começar o quiz já com a primeira resposta escolhida na própria página.
 type OpenFunnel = (origin: string, preset?: Answers) => void;
 
 const FunnelContext = createContext<OpenFunnel>(() => {});
@@ -31,17 +33,29 @@ export const useOpenFunnel = () => useContext(FunnelContext);
 
 export function FunnelProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<{ origin: string; preset: Answers } | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
+
   const open = useCallback<OpenFunnel>((origin, preset: Answers = {}) => {
+    opener.current = document.activeElement as HTMLElement | null;
     setSession({ origin, preset });
-    trackEvent('QuizIniciado', { origem: origin, situacao: preset.situacao }, true);
+    trackEvent('QuizIniciado', { origem: origin, [FIRST_QUESTION]: preset[FIRST_QUESTION] }, true);
+  }, []);
+
+  const close = useCallback(() => {
+    setSession(null);
+    // Devolve o foco ao botão que abriu o quiz (leitores de tela e teclado).
+    window.setTimeout(() => opener.current?.focus(), 0);
   }, []);
 
   return (
     <FunnelContext.Provider value={open}>
-      {children}
-      <AnimatePresence>
-        {session && <QuizModal origin={session.origin} preset={session.preset} onClose={() => setSession(null)} />}
-      </AnimatePresence>
+      {/* Respeita a preferência do sistema por menos animação. */}
+      <MotionConfig reducedMotion="user">
+        {children}
+        <AnimatePresence>
+          {session && <QuizModal origin={session.origin} preset={session.preset} onClose={close} />}
+        </AnimatePresence>
+      </MotionConfig>
     </FunnelContext.Provider>
   );
 }
@@ -61,16 +75,21 @@ const UFS = [
 
 function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answers; onClose: () => void }) {
   const [answers, setAnswers] = useState<Answers>(preset);
-  const [step, setStep] = useState(preset.situacao ? 1 : 0);
+  const [step, setStep] = useState(preset[FIRST_QUESTION] ? 1 : 0);
   const [phase, setPhase] = useState<Phase>({ kind: 'questions' });
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   const questions = useMemo(() => visibleQuestions(answers), [answers]);
   // O formulário conta como uma etapa a mais na barra de progresso.
   const totalSteps = questions.length + 1;
-  const currentStep = phase.kind === 'questions' ? step : totalSteps;
+  const currentStep = phase.kind === 'questions' ? step + 1 : totalSteps;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') trapFocus(e, dialogRef.current);
+    };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
     return () => {
@@ -79,31 +98,41 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
     };
   }, [onClose]);
 
+  // A cada nova tela, o foco vai para o título: o leitor de tela anuncia a pergunta.
+  useEffect(() => {
+    const timer = window.setTimeout(() => titleRef.current?.focus(), 60);
+    return () => window.clearTimeout(timer);
+  }, [step, phase.kind]);
+
   const answer = (id: QuestionId, value: string) => {
-    // Trocar a situação muda o roteiro: descarta respostas de ramos que deixaram de valer.
-    const next: Answers = id === 'situacao' ? { situacao: value } : { ...answers, [id]: value };
+    // Trocar uma resposta muda o roteiro: descarta respostas de perguntas que deixaram de aparecer.
+    const next: Answers = { ...answers, [id]: value };
     const nextQuestions = visibleQuestions(next);
+    const index = nextQuestions.findIndex((q) => q.id === id);
     const kept = Object.fromEntries(
-      nextQuestions.filter((q) => next[q.id]).map((q) => [q.id, next[q.id]]),
+      nextQuestions.slice(0, index + 1).filter((q) => next[q.id]).map((q) => [q.id, next[q.id]]),
     ) as Answers;
     setAnswers(kept);
+    setStep(index);
 
     const reason = disqualification(kept);
     if (reason) {
-      trackEvent('LeadDesqualificado', { motivo: reason, situacao: kept.situacao, origem: origin }, true);
+      trackEvent('LeadDesqualificado', { motivo: reason, origem: origin }, true);
       setPhase({ kind: 'disqualified', reason });
       return;
     }
-    const index = nextQuestions.findIndex((q) => q.id === id);
     if (index + 1 < nextQuestions.length) setStep(index + 1);
     else setPhase({ kind: 'form' });
   };
 
   const back = () => {
-    if (phase.kind === 'form') {
-      setPhase({ kind: 'questions' });
-      setStep(questions.length - 1);
-    } else if (step > 0) setStep(step - 1);
+    if (phase.kind === 'questions') {
+      if (step > 0) setStep(step - 1);
+      return;
+    }
+    // Do formulário ou de uma tela de recusa, volta para a última pergunta respondida.
+    setPhase({ kind: 'questions' });
+    setStep(phase.kind === 'form' ? questions.length - 1 : step);
   };
 
   const submit = (contact: LeadContact) => {
@@ -135,82 +164,100 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
     setPhase({ kind: 'qualified', link, nome: contact.nome });
   };
 
-  const canGoBack = (phase.kind === 'questions' && step > 0) || phase.kind === 'form';
+  const canGoBack = (phase.kind === 'questions' && step > 0) || phase.kind === 'form' || phase.kind === 'disqualified';
   const question = questions[step];
+  const showProgress = phase.kind === 'questions' || phase.kind === 'form';
 
   return (
     <motion.div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-brand-900/60 backdrop-blur-sm sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-brand-900/70 sm:p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <motion.div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="quiz-title"
-        className="relative w-full sm:max-w-xl max-h-[100dvh] sm:max-h-[90vh] overflow-y-auto bg-white rounded-t-[32px] sm:rounded-[32px] shadow-2xl"
+        className="relative w-full sm:max-w-xl max-h-[100dvh] sm:max-h-[92vh] overflow-y-auto bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl"
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 40, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 bg-white px-6 pt-6 pb-4 border-b border-brand-50">
-          <div className="flex items-center justify-between mb-4">
+        <div className="sticky top-0 z-10 bg-white px-5 sm:px-6 pt-4 pb-4 border-b border-brand-100">
+          <div className="flex items-center justify-between mb-3 min-h-[48px]">
             {canGoBack ? (
-              <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-brand-600">
-                <ChevronLeft size={18} /> Voltar
+              <button
+                type="button"
+                onClick={back}
+                className="flex items-center gap-1 min-h-[48px] pr-3 text-base font-bold text-brand-700 hover:text-brand-900"
+              >
+                <ChevronLeft size={22} aria-hidden="true" /> Voltar
               </button>
-            ) : phase.kind === 'questions' ? (
-              <span className="text-sm font-semibold text-brand-600">Leva menos de 1 minuto</span>
             ) : (
-              <span />
+              <span className="text-base font-semibold text-brand-700">Leva menos de 1 minuto</span>
             )}
-            <button type="button" onClick={onClose} aria-label="Fechar" className="p-2 -m-2 text-gray-400 hover:text-brand-900">
-              <X size={22} />
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar o teste"
+              className="w-12 h-12 -mr-2 flex items-center justify-center rounded-full text-gray-700 hover:bg-brand-50"
+            >
+              <X size={26} aria-hidden="true" />
             </button>
           </div>
-          {(phase.kind === 'questions' || phase.kind === 'form') && (
-            <div className="h-2 bg-brand-50 rounded-full overflow-hidden" aria-hidden="true">
+          {showProgress && (
+            <div
+              role="progressbar"
+              aria-label="Andamento do teste"
+              aria-valuemin={1}
+              aria-valuemax={totalSteps}
+              aria-valuenow={currentStep}
+              aria-valuetext={`Etapa ${currentStep} de ${totalSteps}`}
+              className="h-2.5 bg-brand-100 rounded-full overflow-hidden"
+            >
               <motion.div
                 className="h-full bg-brand-600 rounded-full"
-                animate={{ width: `${Math.round(((currentStep + 1) / (totalSteps + 1)) * 100)}%` }}
+                animate={{ width: `${Math.round((currentStep / totalSteps) * 100)}%` }}
               />
             </div>
           )}
         </div>
 
-        <div className="px-6 pb-8 pt-6">
+        <div className="px-5 sm:px-6 pb-8 pt-6">
           <AnimatePresence mode="wait">
             {phase.kind === 'questions' && question && (
-              <motion.div key={question.id} initial={{ x: 30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -30, opacity: 0 }}>
-                <p className="text-sm font-medium text-gray-400 mb-2">
+              <motion.div key={question.id} initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }}>
+                <p className="text-base font-semibold text-gray-700 mb-2">
                   Pergunta {step + 1} de {questions.length}
                 </p>
-                <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2">
+                <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2 outline-none">
                   {question.title}
                 </h2>
-                {question.subtitle && <p className="text-sm text-gray-500 mb-2">{question.subtitle}</p>}
-                <div className="mt-6 space-y-3">
+                {question.subtitle && <p className="text-base text-gray-700 mb-2">{question.subtitle}</p>}
+                <div className="mt-6 space-y-3" role="group" aria-labelledby="quiz-title">
                   {question.options.map((option) => {
                     const selected = answers[question.id] === option.value;
                     return (
                       <button
                         key={option.value}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => answer(question.id, option.value)}
-                        className={`w-full min-h-[60px] flex items-center justify-between gap-3 text-left px-5 py-4 rounded-2xl border-2 text-lg transition-all ${
+                        className={`w-full min-h-[64px] flex items-center justify-between gap-3 text-left px-5 py-4 rounded-2xl border-2 text-lg transition-colors ${
                           selected
-                            ? 'border-brand-500 bg-brand-50 text-brand-900'
-                            : 'border-brand-100 bg-cream text-gray-800 hover:border-brand-300 hover:bg-brand-50'
+                            ? 'border-brand-600 bg-brand-50 text-brand-900'
+                            : 'border-brand-200 bg-cream text-gray-900 hover:border-brand-500 hover:bg-brand-50'
                         }`}
                       >
                         <span>
-                          <span className="block font-semibold">{option.label}</span>
-                          {option.hint && <span className="block text-sm text-gray-500 mt-0.5">{option.hint}</span>}
+                          <span className="block font-bold">{option.label}</span>
+                          {option.hint && <span className="block text-base text-gray-700 mt-0.5">{option.hint}</span>}
                         </span>
-                        <ChevronRight size={18} className="shrink-0 text-brand-400" />
+                        <ChevronRight size={22} className="shrink-0 text-brand-600" aria-hidden="true" />
                       </button>
                     );
                   })}
@@ -219,20 +266,20 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
             )}
 
             {phase.kind === 'form' && (
-              <motion.div key="form" initial={{ x: 30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -30, opacity: 0 }}>
-                <ContactForm onSubmit={submit} />
+              <motion.div key="form" initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }}>
+                <ContactForm onSubmit={submit} titleRef={titleRef} />
               </motion.div>
             )}
 
             {phase.kind === 'qualified' && (
-              <motion.div key="qualified" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <QualifiedScreen link={phase.link} nome={phase.nome} />
+              <motion.div key="qualified" initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                <QualifiedScreen link={phase.link} nome={phase.nome} titleRef={titleRef} />
               </motion.div>
             )}
 
             {phase.kind === 'disqualified' && (
-              <motion.div key="disqualified" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <DisqualifiedScreen reason={phase.reason} onClose={onClose} />
+              <motion.div key="disqualified" initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+                <DisqualifiedScreen reason={phase.reason} onClose={onClose} onBack={back} titleRef={titleRef} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -242,99 +289,152 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
   );
 }
 
+function trapFocus(e: KeyboardEvent, container: HTMLElement | null) {
+  if (!container) return;
+  const focusable = container.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  );
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  if (e.shiftKey && (active === first || !container.contains(active))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (active === last || !container.contains(active))) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+type TitleRef = React.RefObject<HTMLHeadingElement | null>;
+
 // --- Etapas finais ---
 
-function ContactForm({ onSubmit }: { onSubmit: (contact: LeadContact) => void }) {
+function ContactForm({ onSubmit, titleRef }: { onSubmit: (contact: LeadContact) => void; titleRef: TitleRef }) {
   const [nome, setNome] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [cidade, setCidade] = useState('');
   const [uf, setUf] = useState('');
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const phone = normalizeWhatsApp(whatsapp);
     const found: Record<string, string> = {};
-    if (nome.trim().split(/\s+/).length < 2) found.nome = 'Informe nome e sobrenome.';
-    if (!phone) found.whatsapp = 'Informe um celular com DDD, por exemplo (11) 91234-5678.';
-    if (cidade.trim().length < 2) found.cidade = 'Informe sua cidade.';
-    if (!uf) found.uf = 'Selecione o estado.';
-    if (!consent) found.consent = 'É necessário autorizar o contato para continuar.';
+    if (nome.trim().split(/\s+/).length < 2) found.nome = 'Escreva seu nome e sobrenome.';
+    if (!phone) found.whatsapp = 'Escreva um celular com DDD. Exemplo: (11) 91234-5678.';
+    if (cidade.trim().length < 2) found.cidade = 'Escreva sua cidade.';
+    if (!uf) found.uf = 'Escolha o seu estado.';
+    if (!consent) found.consent = 'Marque a autorização para continuar.';
     setErrors(found);
-    if (Object.keys(found).length === 0) onSubmit({ nome, whatsapp: phone!, cidade, uf });
+    if (Object.keys(found).length === 0) {
+      onSubmit({ nome, whatsapp: phone!, cidade, uf });
+      return;
+    }
+    // Leva o foco ao primeiro campo com erro.
+    const firstError = Object.keys(found)[0];
+    formRef.current?.querySelector<HTMLElement>(`[name="${firstError}"]`)?.focus();
   };
 
-  const inputClass = 'w-full px-4 py-3.5 rounded-2xl border-2 border-brand-100 focus:border-brand-600 focus:outline-none text-gray-900';
+  const inputClass = (field: string) =>
+    `w-full min-h-[56px] scroll-mt-40 px-4 py-3 rounded-2xl border-2 text-lg text-gray-900 bg-white focus:outline-none focus:border-brand-700 ${
+      errors[field] ? 'border-red-700' : 'border-gray-400'
+    }`;
+  const a11y = (field: string) => ({
+    name: field,
+    id: `campo-${field}`,
+    'aria-invalid': errors[field] ? true : undefined,
+    'aria-describedby': errors[field] ? `erro-${field}` : undefined,
+  });
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
-      <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2">
-        Última etapa: para onde enviamos o retorno?
+    <form ref={formRef} onSubmit={handleSubmit} noValidate>
+      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2 outline-none">
+        Falta pouco! Para onde mandamos a resposta?
       </h2>
-      <p className="text-sm text-gray-500 mb-6">Uma pessoa da equipe vai continuar o atendimento pelo WhatsApp.</p>
+      <p className="text-base text-gray-700 mb-6">Uma pessoa da equipe vai continuar a conversa com você pelo WhatsApp.</p>
 
-      <div className="space-y-4">
-        <Field label="Nome completo" error={errors.nome}>
-          <input className={inputClass} value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
+      <div className="space-y-5">
+        <Field label="Seu nome completo" field="nome" error={errors.nome}>
+          <input {...a11y('nome')} className={inputClass('nome')} value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
         </Field>
-        <Field label="WhatsApp com DDD" error={errors.whatsapp}>
+        <Field label="Seu WhatsApp com DDD" field="whatsapp" error={errors.whatsapp}>
           <input
-            className={inputClass}
+            {...a11y('whatsapp')}
+            className={inputClass('whatsapp')}
             value={whatsapp}
             onChange={(e) => setWhatsapp(formatWhatsApp(e.target.value))}
+            type="tel"
             inputMode="tel"
             autoComplete="tel-national"
             placeholder="(11) 91234-5678"
           />
         </Field>
-        <div className="grid grid-cols-[1fr_96px] gap-3">
-          <Field label="Cidade" error={errors.cidade}>
-            <input className={inputClass} value={cidade} onChange={(e) => setCidade(e.target.value)} autoComplete="address-level2" />
+        <div className="grid grid-cols-[1fr_110px] gap-3">
+          <Field label="Cidade" field="cidade" error={errors.cidade}>
+            <input {...a11y('cidade')} className={inputClass('cidade')} value={cidade} onChange={(e) => setCidade(e.target.value)} autoComplete="address-level2" />
           </Field>
-          <Field label="UF" error={errors.uf}>
-            <select className={inputClass} value={uf} onChange={(e) => setUf(e.target.value)} autoComplete="address-level1">
-              <option value="" />
+          <Field label="Estado" field="uf" error={errors.uf}>
+            <select {...a11y('uf')} className={inputClass('uf')} value={uf} onChange={(e) => setUf(e.target.value)} autoComplete="address-level1">
+              <option value="">UF</option>
               {UFS.map((u) => (
                 <option key={u} value={u}>{u}</option>
               ))}
             </select>
           </Field>
         </div>
-        <label className="flex items-start gap-3 text-xs text-gray-600 leading-relaxed cursor-pointer">
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 w-4 h-4 accent-brand-600 shrink-0" />
-          <span>
-            Autorizo o uso destes dados e das respostas acima exclusivamente para contato e análise do meu caso, nos termos da Lei Geral de Proteção de Dados (Lei 13.709/2018).
-          </span>
-        </label>
-        {errors.consent && <p className="text-xs text-brand-700 font-medium">{errors.consent}</p>}
+        <div>
+          <label htmlFor="campo-consent" className="flex items-start gap-3 text-base text-gray-800 leading-relaxed cursor-pointer">
+            <input
+              {...a11y('consent')}
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-1 w-6 h-6 accent-brand-600 shrink-0"
+            />
+            <span>Autorizo o uso destes dados e das minhas respostas só para entrarem em contato e analisarem o meu caso (Lei Geral de Proteção de Dados).</span>
+          </label>
+          {errors.consent && (
+            <p id="erro-consent" className="mt-1 text-base text-red-800 font-semibold">{errors.consent}</p>
+          )}
+        </div>
       </div>
 
       <button
         type="submit"
-        className="mt-6 w-full bg-brand-600 hover:bg-brand-700 text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-brand-200 flex items-center justify-center gap-2"
+        className="mt-7 w-full min-h-[60px] bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-bold text-xl flex items-center justify-center gap-2"
       >
-        Ver resultado da análise <ChevronRight />
+        Ver o resultado <ChevronRight aria-hidden="true" />
       </button>
-      <p className="mt-4 flex items-center justify-center gap-2 text-xs text-gray-400">
-        <Lock size={14} /> Informações protegidas por sigilo profissional
+      <p className="mt-4 flex items-center justify-center gap-2 text-base text-gray-700">
+        <Lock size={16} aria-hidden="true" /> Seus dados ficam protegidos por sigilo profissional
       </p>
     </form>
   );
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+function Field({ label, field, error, children }: { label: string; field: string; error?: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="block text-sm font-bold text-brand-900 mb-1.5">{label}</span>
+    <div>
+      <label htmlFor={`campo-${field}`} className="block text-lg font-bold text-brand-900 mb-1.5">
+        {label}
+      </label>
       {children}
-      {error && <span className="block mt-1 text-xs text-brand-700 font-medium">{error}</span>}
-    </label>
+      {error && (
+        <p id={`erro-${field}`} className="mt-1 text-base text-red-800 font-semibold">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
-function QualifiedScreen({ link, nome }: { link: string; nome: string }) {
+function QualifiedScreen({ link, nome, titleRef }: { link: string; nome: string; titleRef: TitleRef }) {
   const [seconds, setSeconds] = useState(REDIRECT_DELAY_SECONDS);
+  const [paused, setPaused] = useState(false);
   const redirected = useRef(false);
 
   const goToWhatsApp = useCallback(() => {
@@ -345,24 +445,25 @@ function QualifiedScreen({ link, nome }: { link: string; nome: string }) {
   }, [link]);
 
   useEffect(() => {
+    if (paused) return;
     if (seconds <= 0) {
       goToWhatsApp();
       return;
     }
     const timer = window.setTimeout(() => setSeconds((s) => s - 1), 1000);
     return () => window.clearTimeout(timer);
-  }, [seconds, goToWhatsApp]);
+  }, [seconds, paused, goToWhatsApp]);
 
   return (
     <div className="text-center">
       <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-        <ShieldCheck className="text-green-600" size={34} />
+        <ShieldCheck className="text-whatsapp" size={34} aria-hidden="true" />
       </div>
-      <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 mb-3">
-        {firstName(nome)}, recebemos sua análise
+      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 mb-3 outline-none">
+        {firstName(nome)}, recebemos suas respostas
       </h2>
-      <p className="text-gray-600 leading-relaxed mb-8">
-        Pelas suas respostas, o caso pode ser avaliado pela nossa equipe. Envie o resumo pelo WhatsApp para continuar o atendimento com prioridade.
+      <p className="text-lg text-gray-800 leading-relaxed mb-8">
+        Pelo que você contou, seu caso pode ser analisado pela nossa equipe. Toque no botão para mandar o resumo no WhatsApp e continuar a conversa.
       </p>
       <a
         href={link}
@@ -370,38 +471,88 @@ function QualifiedScreen({ link, nome }: { link: string; nome: string }) {
           e.preventDefault();
           goToWhatsApp();
         }}
-        className="w-full bg-whatsapp hover:bg-whatsapp-dark text-white py-4 rounded-2xl font-bold text-lg shadow-xl flex items-center justify-center gap-2"
+        className="w-full min-h-[60px] bg-whatsapp hover:bg-whatsapp-dark text-white rounded-2xl font-bold text-xl shadow-lg flex items-center justify-center gap-2"
       >
-        <MessageCircle size={22} /> Continuar no WhatsApp
+        <MessageCircle size={24} aria-hidden="true" /> Continuar no WhatsApp
       </a>
-      <p className="mt-4 text-xs text-gray-400" aria-live="polite">
-        {seconds > 0 ? `Abrindo o WhatsApp em ${seconds}s…` : 'Abrindo o WhatsApp…'}
-      </p>
+      <div className="mt-4 text-base text-gray-700" aria-live="polite">
+        {paused ? (
+          'Quando quiser, toque no botão verde.'
+        ) : (
+          <>
+            {seconds > 0 ? `O WhatsApp vai abrir em ${seconds} segundos. ` : 'Abrindo o WhatsApp… '}
+            <button type="button" onClick={() => setPaused(true)} className="underline font-semibold text-brand-700 min-h-[44px]">
+              Esperar
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function DisqualifiedScreen({ reason, onClose }: { reason: DisqualifyReason; onClose: () => void }) {
-  const content =
-    reason === 'representado'
-      ? {
-          title: 'Seu caso já tem quem cuide dele',
-          text: 'Como um(a) advogado(a) ou a Defensoria Pública já acompanha o caso, o caminho mais seguro é tratar das próximas etapas diretamente com quem representa você. Se decidir mudar de representante, estamos à disposição.',
-        }
-      : {
-          title: 'Existe atendimento gratuito para o seu caso',
-          text: 'Quem não pode pagar advogado(a) particular tem direito a atendimento pela Defensoria Pública do seu estado. Leve documento com foto, comprovante de residência, certidão de nascimento do(a) filho(a) ou exame da gravidez e o que tiver sobre a renda do pai.',
-        };
+const DISQUALIFIED_CONTENT: Record<DisqualifyReason, { title: string; text: string }> = {
+  prazo: {
+    title: 'O prazo para esse filho já passou',
+    text: 'O pedido do salário-maternidade tem prazo de 5 anos. Para filhos com mais de 5 anos, em regra, não é mais possível receber. Se você tiver outro filho mais novo, faça o teste de novo.'
+  },
+  semVinculo: {
+    title: 'Por enquanto, o INSS não paga nesse caso',
+    text: 'O salário-maternidade é pago a quem trabalhou registrada, pagou o INSS ou trabalha no campo. Se você começar a pagar o INSS, pode ter direito numa próxima gravidez.'
+  },
+  empregada: {
+    title: 'Quem paga é a sua empresa',
+    text: 'Quando você continua empregada, a própria empresa paga o salário-maternidade e depois acerta com o INSS. Fale com o RH. Se a empresa se recusar a pagar, procure orientação.'
+  },
+  semQualidade: {
+    title: 'O tempo de proteção do INSS acabou',
+    text: 'Depois que a pessoa para de trabalhar registrada ou de pagar o INSS, a proteção dura um tempo limitado: até 3 anos nos casos mais favoráveis. Se você trabalhou ou pagou o INSS depois disso, volte e mude a resposta.'
+  },
+  jaRecebeu: {
+    title: 'Você já recebeu o benefício',
+    text: 'O salário-maternidade é pago uma vez para cada nascimento ou adoção. Se você tiver outro filho, pode fazer o teste de novo.'
+  },
+  representado: {
+    title: 'Seu pedido já tem quem cuide dele',
+    text: 'Como um(a) advogado(a) já acompanha seu pedido, o melhor é falar com ele(a) sobre as próximas etapas. Se decidir trocar, estamos à disposição.'
+  },
+};
+
+function DisqualifiedScreen({
+  reason,
+  onClose,
+  onBack,
+  titleRef,
+}: {
+  reason: DisqualifyReason;
+  onClose: () => void;
+  onBack: () => void;
+  titleRef: TitleRef;
+}) {
+  const content = DISQUALIFIED_CONTENT[reason];
 
   return (
     <div className="text-center">
-      <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 mb-3">
+      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 mb-3 outline-none">
         {content.title}
       </h2>
-      <p className="text-gray-600 leading-relaxed mb-8">{content.text}</p>
-      <button type="button" onClick={onClose} className="w-full border-2 border-brand-200 text-brand-700 py-4 rounded-2xl font-bold hover:bg-brand-50">
-        Voltar ao site
-      </button>
+      <p className="text-lg text-gray-800 leading-relaxed mb-8">{content.text}</p>
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-full min-h-[56px] bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-bold text-lg"
+        >
+          Mudar minha resposta
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full min-h-[56px] border-2 border-brand-600 text-brand-700 rounded-2xl font-bold text-lg hover:bg-brand-50"
+        >
+          Voltar ao site
+        </button>
+      </div>
     </div>
   );
 }

@@ -32,3 +32,22 @@
     @apply bg-cream text-brand-900 antialiased;
   }
 }
+
+/* Acessibilidade: foco sempre visível para quem navega pelo teclado. */
+:focus-visible {
+  outline: 3px solid var(--color-brand-800);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

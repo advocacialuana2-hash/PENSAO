@@ -7,37 +7,47 @@ import React from 'react';
 import {
   Baby,
   CalendarX,
+  CheckCircle2,
   ChevronRight,
-  HandCoins,
   Heart,
   HeartHandshake,
+  Info,
   Lock,
   MessageCircle,
   Smartphone,
-  Wallet,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FunnelProvider, useOpenFunnel } from './funnel/QuizFunnel';
 import { QUESTIONS } from './funnel/questions';
+import { BRAND_NAME, OAB_INFO } from './funnel/config';
 
-const SITUATION_ICONS: Record<string, typeof Baby> = {
-  gravidez: Baby,
-  fixacao: HandCoins,
-  execucao: CalendarX,
-  revisao: Wallet,
+const FIRST_OPTION_ICONS: Record<string, typeof Baby> = {
+  gravida: Heart,
+  nasceu: Baby,
+  adocao: HeartHandshake,
+  mais5: CalendarX,
 };
 
-const situationQuestion = QUESTIONS[0];
+const firstQuestion = QUESTIONS[0];
 
 // --- Seções ---
 
+const SkipLink = () => (
+  <a
+    href="#teste"
+    className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:bg-white focus:text-brand-900 focus:px-5 focus:py-3 focus:rounded-xl focus:font-bold focus:shadow-lg"
+  >
+    Ir direto para o teste
+  </a>
+);
+
 const Logo = () => (
   <span className="flex items-center gap-2">
-    <span className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center">
-      <Heart className="text-brand-600" size={18} fill="currentColor" />
+    <span className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center" aria-hidden="true">
+      <Heart className="text-brand-600" size={20} fill="currentColor" />
     </span>
-    <span className="font-serif text-xl font-semibold text-brand-900">
-      Help <span className="text-brand-600">Pensão</span>
+    <span className="font-serif text-xl font-semibold text-brand-900 leading-tight">
+      Salário-<span className="text-brand-700">Maternidade</span>
     </span>
   </span>
 );
@@ -46,15 +56,15 @@ const Header = () => {
   const openFunnel = useOpenFunnel();
 
   return (
-    <header className="sticky top-0 z-40 bg-cream/90 backdrop-blur-md border-b border-brand-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-cream/95 backdrop-blur-md border-b border-brand-100">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-[72px] flex items-center justify-between gap-3">
         <Logo />
         <button
           type="button"
           onClick={() => openFunnel('topo')}
-          className="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-full font-bold text-sm transition-colors"
+          className="shrink-0 min-h-[48px] bg-brand-600 hover:bg-brand-700 text-white px-5 rounded-full font-bold text-base transition-colors"
         >
-          Começar
+          Fazer o teste
         </button>
       </div>
     </header>
@@ -77,60 +87,62 @@ const HeroPhoto = ({ className = '' }: { className?: string }) => (
   </picture>
 );
 
-const SituationPicker = () => {
+const FirstQuestion = () => {
   const openFunnel = useOpenFunnel();
 
   return (
-    <div className="bg-white rounded-[28px] shadow-xl shadow-brand-900/10 border border-brand-100 p-5 sm:p-6">
-      <h2 className="font-serif text-xl sm:text-2xl font-semibold text-brand-900 mb-4">
-        Para começar, qual é a sua situação?
+    <section
+      id="teste"
+      aria-labelledby="teste-titulo"
+      className="bg-white rounded-[28px] shadow-xl shadow-brand-900/10 border border-brand-100 p-5 sm:p-6"
+    >
+      <p className="text-base font-semibold text-brand-700 mb-1">Teste rápido, leva 1 minuto</p>
+      <h2 id="teste-titulo" className="font-serif text-2xl font-semibold text-brand-900 mb-4">
+        {firstQuestion.title}
       </h2>
       <div className="space-y-3">
-        {situationQuestion.options.map((option) => {
-          const Icon = SITUATION_ICONS[option.value] ?? Heart;
+        {firstQuestion.options.map((option) => {
+          const Icon = FIRST_OPTION_ICONS[option.value] ?? Heart;
           return (
             <button
               key={option.value}
               type="button"
-              onClick={() => openFunnel('topo_pergunta', { situacao: option.value })}
-              className="w-full min-h-[64px] flex items-center gap-4 text-left px-4 py-3 rounded-2xl border-2 border-brand-100 bg-cream hover:border-brand-300 hover:bg-brand-50 transition-colors group"
+              onClick={() => openFunnel('topo_pergunta', { [firstQuestion.id]: option.value })}
+              className="w-full min-h-[68px] flex items-center gap-4 text-left px-4 py-3 rounded-2xl border-2 border-brand-200 bg-cream hover:border-brand-500 hover:bg-brand-50 transition-colors group"
             >
-              <span className="w-11 h-11 shrink-0 rounded-full bg-brand-100 flex items-center justify-center">
-                <Icon className="text-brand-600" size={22} />
+              <span className="w-12 h-12 shrink-0 rounded-full bg-brand-100 flex items-center justify-center" aria-hidden="true">
+                <Icon className="text-brand-700" size={24} />
               </span>
               <span className="flex-1">
-                <span className="block font-bold text-brand-900 leading-snug">{option.label}</span>
-                {option.hint && <span className="block text-sm text-gray-500">{option.hint}</span>}
+                <span className="block text-lg font-bold text-brand-900 leading-snug">{option.label}</span>
+                {option.hint && <span className="block text-base text-gray-700">{option.hint}</span>}
               </span>
-              <ChevronRight className="text-brand-400 group-hover:translate-x-1 transition-transform shrink-0" size={20} />
+              <ChevronRight className="text-brand-600 group-hover:translate-x-1 transition-transform shrink-0" size={24} aria-hidden="true" />
             </button>
           );
         })}
       </div>
-      <p className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-500">
-        <Lock size={14} /> Leva menos de 1 minuto. Suas respostas ficam em sigilo.
+      <p className="mt-4 flex items-center justify-center gap-2 text-base text-gray-700">
+        <Lock size={16} aria-hidden="true" /> Suas respostas ficam em sigilo
       </p>
-    </div>
+    </section>
   );
 };
 
 const Hero = () => (
-  <section className="relative overflow-hidden">
-    <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-peach blur-3xl opacity-70 -z-10" />
-    <div className="absolute top-1/2 -left-40 w-96 h-96 rounded-full bg-sky blur-3xl opacity-70 -z-10" />
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 pb-16 lg:pt-16 lg:pb-24 grid lg:grid-cols-[1fr_460px] gap-10 lg:gap-16 items-center">
+  <section className="relative overflow-hidden" aria-labelledby="titulo-principal">
+    <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-peach blur-3xl opacity-70 -z-10" aria-hidden="true" />
+    <div className="absolute top-1/2 -left-40 w-96 h-96 rounded-full bg-sky blur-3xl opacity-70 -z-10" aria-hidden="true" />
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10 pb-16 lg:pt-16 lg:pb-24 grid lg:grid-cols-[1fr_460px] gap-10 lg:gap-16 items-center">
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-100 text-brand-700 text-sm font-bold mb-4">
-          <HeartHandshake size={16} /> Pensão alimentícia e gestantes
-        </span>
-        <h1 className="font-serif text-[2.1rem] sm:text-5xl lg:text-6xl font-semibold text-brand-900 leading-[1.1] mb-4">
-          Você não precisa enfrentar isso <span className="text-brand-600 italic">sozinha.</span>
-        </h1>
-        <p className="sm:hidden text-base text-gray-600 leading-relaxed mb-5">
-          O pai também tem o dever de ajudar. A gente te orienta pelo WhatsApp.
+        <p className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-100 text-brand-800 text-base font-bold mb-4">
+          <HeartHandshake size={18} aria-hidden="true" /> Benefício do INSS para mães
         </p>
-        <p className="hidden sm:block text-xl text-gray-600 leading-relaxed mb-8 max-w-xl">
-          Grávida ou já com seu filho nos braços: o pai também tem o dever de ajudar no sustento. A gente te orienta pelo WhatsApp, do jeito mais simples.
+        <h1 id="titulo-principal" className="font-serif text-[2.1rem] sm:text-5xl lg:text-6xl font-semibold text-brand-900 leading-[1.12] mb-4">
+          Mesmo sem emprego, você pode receber o <span className="text-brand-700 italic">salário-maternidade.</span>
+        </h1>
+        <p className="text-lg sm:text-xl text-gray-800 leading-relaxed mb-6 sm:mb-8 max-w-xl">
+          O INSS paga 120 dias, cerca de 4 meses. Responda algumas perguntas e descubra se você tem direito.
         </p>
 
         {/* No celular a foto aparece antes da pergunta; no computador, ao lado. */}
@@ -140,7 +152,7 @@ const Hero = () => (
           </div>
         </div>
         <div className="relative z-10 px-2 sm:px-0">
-          <SituationPicker />
+          <FirstQuestion />
         </div>
       </motion.div>
 
@@ -153,81 +165,72 @@ const Hero = () => (
         <div className="rounded-t-[230px] rounded-b-[40px] overflow-hidden border-8 border-white shadow-2xl">
           <HeroPhoto className="h-[600px] object-[50%_30%]" />
         </div>
-        <div className="absolute -bottom-6 -left-8 bg-white rounded-3xl shadow-xl px-5 py-4 flex items-center gap-3">
-          <span className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-            <MessageCircle className="text-whatsapp" size={20} />
-          </span>
-          <span className="text-sm font-bold text-brand-900 leading-tight">
-            Atendimento humano
-            <br />
-            <span className="font-medium text-gray-500">pelo WhatsApp</span>
-          </span>
-        </div>
       </motion.div>
     </div>
   </section>
 );
 
 const TrustBar = () => (
-  <section className="border-y border-brand-100 bg-white">
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <section aria-label="Como é o atendimento" className="border-y border-brand-100 bg-white">
+    <ul className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
       {[
-        { icon: Smartphone, title: 'Tudo pelo celular', desc: 'Sem precisar ir ao escritório' },
+        { icon: Smartphone, title: 'Tudo pelo celular', desc: 'Você não precisa ir ao INSS' },
         { icon: Lock, title: 'Sigilo profissional', desc: 'Sua história fica entre nós' },
         { icon: HeartHandshake, title: 'Atendimento humano', desc: 'Uma pessoa conversa com você' },
       ].map((item) => (
-        <div key={item.title} className="flex items-center gap-3">
-          <span className="w-11 h-11 shrink-0 rounded-full bg-brand-50 flex items-center justify-center">
-            <item.icon className="text-brand-600" size={22} />
+        <li key={item.title} className="flex items-center gap-3">
+          <span className="w-12 h-12 shrink-0 rounded-full bg-brand-50 flex items-center justify-center" aria-hidden="true">
+            <item.icon className="text-brand-700" size={24} />
           </span>
           <span>
-            <span className="block font-bold text-brand-900">{item.title}</span>
-            <span className="block text-sm text-gray-500">{item.desc}</span>
+            <span className="block text-lg font-bold text-brand-900">{item.title}</span>
+            <span className="block text-base text-gray-700">{item.desc}</span>
           </span>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   </section>
 );
 
-const Empathy = () => (
-  <section className="py-20 bg-peach/60">
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-      <Heart className="mx-auto text-brand-500 mb-5" size={32} />
-      <h2 className="font-serif text-3xl sm:text-4xl font-semibold text-brand-900 mb-6">A gente sabe como é cansativo</h2>
-      <p className="text-lg sm:text-xl text-gray-700 leading-relaxed">
-        Contar cada centavo, ouvir promessas que não se cumprem, sentir que tudo depende só de você. Seu filho tem direito à pensão, e você tem direito a ter alguém do seu lado para cuidar disso.
-      </p>
-    </div>
-  </section>
-);
-
-const Pregnancy = () => {
+const WhoCanReceive = () => {
   const openFunnel = useOpenFunnel();
 
   return (
-    <section className="py-20">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        <div className="bg-sky rounded-[40px] p-8 sm:p-12 grid md:grid-cols-[auto_1fr] gap-8 items-center">
-          <span className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-md">
-            <Baby className="text-brand-600" size={40} />
+    <section className="py-16 sm:py-20 bg-peach/60" aria-labelledby="quem-titulo">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+        <h2 id="quem-titulo" className="font-serif text-3xl sm:text-4xl font-semibold text-brand-900 text-center mb-8">
+          Quem pode ter direito
+        </h2>
+        <ul className="space-y-4">
+          {[
+            { title: 'Quem trabalhou de carteira assinada e saiu ou foi demitida', desc: 'Desde que ainda esteja no prazo de proteção do INSS.' },
+            { title: 'MEI, autônoma ou quem paga o carnê do INSS', desc: 'Mesmo que não pague mais, dependendo de quando parou.' },
+            { title: 'Quem trabalha no campo, na pesca ou no extrativismo', desc: 'Mesmo sem nunca ter pago o INSS.' },
+            { title: 'Mãe que adotou uma criança', desc: 'Também vale para quem tem a guarda para adoção.' },
+          ].map((item) => (
+            <li key={item.title} className="flex items-start gap-4 bg-white rounded-2xl p-5 border border-brand-100">
+              <CheckCircle2 className="text-whatsapp shrink-0 mt-0.5" size={28} aria-hidden="true" />
+              <span>
+                <span className="block text-lg font-bold text-brand-900">{item.title}</span>
+                <span className="block text-base text-gray-700 mt-1">{item.desc}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-6 flex items-start gap-3 bg-sky rounded-2xl p-5 text-base text-gray-900">
+          <Info className="text-brand-800 shrink-0 mt-0.5" size={22} aria-hidden="true" />
+          <span>
+            <strong>Ainda está empregada?</strong> Nesse caso, quem paga o salário-maternidade é a própria empresa.
           </span>
-          <div>
-            <h2 className="font-serif text-3xl font-semibold text-brand-900 mb-4">
-              Grávida? Você não precisa esperar o bebê nascer.
-            </h2>
-            <p className="text-lg text-gray-700 leading-relaxed mb-3">
-              A lei garante os <strong>alimentos gravídicos</strong>: o pai ajuda com as despesas da gravidez, como consultas, exames, remédios e parto. Depois do nascimento, eles passam a valer como pensão para o bebê.
-            </p>
-            <p className="text-sm text-gray-500 mb-6">Lei 11.804/2008</p>
-            <button
-              type="button"
-              onClick={() => openFunnel('secao_gestante', { situacao: 'gravidez' })}
-              className="bg-brand-600 hover:bg-brand-700 text-white px-7 py-4 rounded-2xl font-bold text-lg transition-colors inline-flex items-center gap-2"
-            >
-              Sou gestante, quero começar <ChevronRight size={20} />
-            </button>
-          </div>
+        </p>
+        <div className="text-center mt-8">
+          <button
+            type="button"
+            onClick={() => openFunnel('quem_tem_direito')}
+            className="min-h-[60px] bg-brand-600 hover:bg-brand-700 text-white px-8 rounded-2xl font-bold text-lg transition-colors inline-flex items-center gap-2"
+          >
+            Descobrir se eu tenho direito <ChevronRight size={22} aria-hidden="true" />
+          </button>
         </div>
       </div>
     </section>
@@ -235,68 +238,65 @@ const Pregnancy = () => {
 };
 
 const HowItWorks = () => (
-  <section className="py-20 bg-white">
+  <section className="py-16 sm:py-20 bg-white" aria-labelledby="como-titulo">
     <div className="max-w-6xl mx-auto px-4 sm:px-6">
-      <h2 className="font-serif text-3xl sm:text-4xl font-semibold text-brand-900 text-center mb-12">Como funciona</h2>
-      <div className="grid md:grid-cols-3 gap-6">
+      <h2 id="como-titulo" className="font-serif text-3xl sm:text-4xl font-semibold text-brand-900 text-center mb-10">
+        Como funciona
+      </h2>
+      <ol className="grid md:grid-cols-3 gap-6">
         {[
-          { title: 'Responda algumas perguntas', desc: 'São perguntas simples, é só tocar na resposta.' },
-          { title: 'Converse com a equipe no WhatsApp', desc: 'Uma pessoa entende o seu caso e explica o caminho.' },
-          { title: 'Assine pelo celular', desc: 'Contrato e documentos são enviados e assinados sem sair de casa.' },
+          { title: 'Faça o teste', desc: 'São poucas perguntas. É só tocar na resposta.' },
+          { title: 'Converse no WhatsApp', desc: 'Uma pessoa da equipe entende o seu caso e explica tudo.' },
+          { title: 'A gente cuida do pedido', desc: 'Você assina pelo celular e a equipe faz o pedido no INSS.' },
         ].map((item, i) => (
-          <div key={item.title} className="bg-cream rounded-[28px] p-8 border border-brand-100">
-            <span className="w-12 h-12 rounded-full bg-brand-600 text-white font-serif text-xl font-semibold flex items-center justify-center mb-5">
+          <li key={item.title} className="bg-cream rounded-[28px] p-7 border border-brand-100">
+            <span className="w-12 h-12 rounded-full bg-brand-600 text-white font-serif text-xl font-semibold flex items-center justify-center mb-4" aria-hidden="true">
               {i + 1}
             </span>
             <h3 className="text-xl font-bold text-brand-900 mb-2">{item.title}</h3>
-            <p className="text-gray-600 leading-relaxed">{item.desc}</p>
-          </div>
+            <p className="text-lg text-gray-700 leading-relaxed">{item.desc}</p>
+          </li>
         ))}
-      </div>
+      </ol>
     </div>
   </section>
 );
 
 const FAQ = () => (
-  <section className="py-20">
+  <section className="py-16 sm:py-20" aria-labelledby="duvidas-titulo">
     <div className="max-w-3xl mx-auto px-4 sm:px-6">
-      <h2 className="font-serif text-3xl sm:text-4xl font-semibold text-brand-900 text-center mb-10">Dúvidas comuns</h2>
+      <h2 id="duvidas-titulo" className="font-serif text-3xl sm:text-4xl font-semibold text-brand-900 text-center mb-8">
+        Dúvidas comuns
+      </h2>
       <div className="space-y-3">
         {[
           {
-            q: 'Preciso ir até o escritório?',
-            a: 'Não. Todo o atendimento é feito pelo WhatsApp, e os documentos são assinados pelo celular.',
+            q: 'Estou desempregada. Posso receber?',
+            a: 'Pode, se ainda estiver no prazo de proteção do INSS, chamado de período de graça. Em geral, ele dura 12 meses depois do último emprego e pode chegar a 3 anos em alguns casos.',
+          },
+          { q: 'Por quanto tempo eu recebo?', a: 'Em regra, por 120 dias, cerca de 4 meses.' },
+          { q: 'Meu bebê já nasceu. Ainda dá tempo?', a: 'Em regra, sim, se a criança tem menos de 5 anos.' },
+          {
+            q: 'Qual é o valor?',
+            a: 'Depende do seu caso. Para quem trabalhou registrada ou pagou o INSS, o valor é calculado pelas contribuições. Para quem trabalha no campo, é de um salário mínimo.',
           },
           {
-            q: 'Estou grávida. Já posso pedir ajuda ao pai?',
-            a: 'Sim. Os alimentos gravídicos podem ser pedidos durante a gestação e cobrem despesas como consultas, exames, remédios e parto.',
+            q: 'O INSS negou meu pedido. E agora?',
+            a: 'Dá para recorrer no próprio INSS ou entrar na Justiça. A equipe analisa o motivo da negativa.',
           },
-          {
-            q: 'E se ele estiver desempregado?',
-            a: 'A obrigação continua. O valor leva em conta o que a criança precisa e o que o pai pode pagar.',
-          },
-          {
-            q: 'Ele não paga o que foi combinado. O que fazer?',
-            a: 'Se a pensão foi definida pelo juiz ou em acordo formal, é possível cobrar os valores atrasados na Justiça. Se foi só um combinado entre vocês, o primeiro passo é pedir que a pensão seja fixada.',
-          },
-          {
-            q: 'Quanto tempo demora?',
-            a: 'Depende de cada caso e de cada vara. Logo no início do processo, é possível pedir ao juiz que fixe um valor provisório.',
-          },
-          {
-            q: 'Minhas informações ficam protegidas?',
-            a: 'Sim. Tudo o que você contar é protegido pelo sigilo profissional e usado só para cuidar do seu caso.',
-          },
+          { q: 'Preciso sair de casa?', a: 'Não. O atendimento é pelo WhatsApp e você assina tudo pelo celular.' },
+          { q: 'Meus dados ficam protegidos?', a: 'Sim. Tudo o que você contar é protegido pelo sigilo profissional e usado só para cuidar do seu pedido.' },
         ].map((faq) => (
-          <details key={faq.q} className="group bg-white rounded-2xl border border-brand-100 overflow-hidden">
-            <summary className="flex justify-between items-center gap-4 p-5 cursor-pointer font-bold text-lg text-brand-900 hover:bg-brand-50 transition-colors list-none">
+          <details key={faq.q} className="group bg-white rounded-2xl border-2 border-brand-100">
+            <summary className="flex justify-between items-center gap-4 min-h-[64px] px-5 py-4 cursor-pointer font-bold text-lg text-brand-900 hover:bg-brand-50 rounded-2xl list-none">
               {faq.q}
-              <ChevronRight className="group-open:rotate-90 transition-transform text-brand-500 shrink-0" />
+              <ChevronRight className="group-open:rotate-90 transition-transform text-brand-600 shrink-0" aria-hidden="true" />
             </summary>
-            <p className="px-5 pb-5 text-gray-600 leading-relaxed">{faq.a}</p>
+            <p className="px-5 pb-5 text-lg text-gray-800 leading-relaxed">{faq.a}</p>
           </details>
         ))}
       </div>
+      <p className="mt-6 text-base text-gray-700 text-center">Regras do salário-maternidade: Lei 8.213/1991, artigos 71 a 73.</p>
     </div>
   </section>
 );
@@ -305,22 +305,21 @@ const FinalCta = () => {
   const openFunnel = useOpenFunnel();
 
   return (
-    <section className="px-4 sm:px-6 pb-20">
-      <div className="max-w-5xl mx-auto bg-brand-600 rounded-[40px] px-6 py-14 sm:p-16 text-center text-white relative overflow-hidden">
-        <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-brand-500 opacity-60" />
-        <div className="relative">
-          <h2 className="font-serif text-3xl sm:text-5xl font-semibold mb-4">Dê o primeiro passo hoje</h2>
-          <p className="text-lg sm:text-xl text-brand-50 mb-8 max-w-xl mx-auto">
-            Responda as perguntas e continue a conversa com a gente pelo WhatsApp.
-          </p>
-          <button
-            type="button"
-            onClick={() => openFunnel('cta_final')}
-            className="bg-white text-brand-700 hover:bg-brand-50 px-10 py-5 rounded-2xl font-bold text-lg transition-colors inline-flex items-center gap-2"
-          >
-            Começar agora <ChevronRight />
-          </button>
-        </div>
+    <section className="px-4 sm:px-6 pb-20" aria-labelledby="cta-titulo">
+      <div className="max-w-5xl mx-auto bg-brand-700 rounded-[40px] px-6 py-14 sm:p-16 text-center text-white">
+        <h2 id="cta-titulo" className="font-serif text-3xl sm:text-5xl font-semibold mb-4">
+          Descubra agora se você tem direito
+        </h2>
+        <p className="text-lg sm:text-xl text-white mb-8 max-w-xl mx-auto">
+          Faça o teste e continue a conversa com a gente pelo WhatsApp.
+        </p>
+        <button
+          type="button"
+          onClick={() => openFunnel('cta_final')}
+          className="min-h-[60px] bg-white text-brand-800 hover:bg-brand-50 px-10 rounded-2xl font-bold text-xl transition-colors inline-flex items-center gap-2"
+        >
+          Fazer o teste <ChevronRight aria-hidden="true" />
+        </button>
       </div>
     </section>
   );
@@ -330,16 +329,17 @@ const Footer = () => (
   <footer className="bg-white border-t border-brand-100 pt-12 pb-28 md:pb-12">
     <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
       <Logo />
-      <div className="text-sm text-gray-500 space-y-1 md:text-right">
+      <div className="text-base text-gray-700 space-y-1 md:text-right">
+        {BRAND_NAME && <p className="font-bold text-brand-900">{BRAND_NAME}</p>}
+        {OAB_INFO && <p>{OAB_INFO}</p>}
         <p>Atendimento on-line em todo o Brasil</p>
-        <p>OAB/SP 000.000</p>
-        <p>Informações protegidas por sigilo profissional. © 2026 Help Pensão Alimentícia.</p>
+        <p>Informações protegidas por sigilo profissional.</p>
       </div>
     </div>
   </footer>
 );
 
-// Botão flutuante: também leva ao quiz. Só aparece depois do topo, para não cobrir a foto e a pergunta.
+// Botão flutuante: também leva ao teste. Só aparece depois do topo, para não cobrir a foto e a pergunta.
 const FloatingCta = () => {
   const openFunnel = useOpenFunnel();
   const [visible, setVisible] = React.useState(false);
@@ -360,10 +360,10 @@ const FloatingCta = () => {
       style={{ pointerEvents: visible ? 'auto' : 'none' }}
       aria-hidden={!visible}
       tabIndex={visible ? 0 : -1}
-      className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white pl-4 pr-5 py-3.5 rounded-full font-bold shadow-xl"
+      className="fixed bottom-5 right-5 z-50 min-h-[56px] flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white pl-4 pr-5 rounded-full font-bold text-lg shadow-xl"
     >
-      <MessageCircle size={22} />
-      Falar com a equipe
+      <MessageCircle size={24} aria-hidden="true" />
+      Fazer o teste
     </motion.button>
   );
 };
@@ -372,12 +372,12 @@ export default function App() {
   return (
     <FunnelProvider>
       <div className="font-sans selection:bg-brand-200 selection:text-brand-900">
+        <SkipLink />
         <Header />
         <main>
           <Hero />
           <TrustBar />
-          <Empathy />
-          <Pregnancy />
+          <WhoCanReceive />
           <HowItWorks />
           <FAQ />
           <FinalCta />
