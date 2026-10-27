@@ -22,6 +22,15 @@
   --color-sky: #eef0fa;
   --color-whatsapp: #15803d;
   --color-whatsapp-dark: #166534;
+
+  /* Visual de conversa no estilo WhatsApp. Texto escuro sobre o verde da marca (6,2:1). */
+  --color-wa: #25d366;
+  --color-wa-hover: #1ebe5b;
+  --color-wa-ink: #0b3d1f;
+  --color-wa-header: #075e54;
+  --color-wa-teal: #008069;
+  --color-wa-chat: #efeae2;
+  --color-wa-bubble: #d9fdd3;
 }
 
 @layer base {

@@ -9,12 +9,14 @@ A página não mostra o número do escritório. A cliente só conhece o número 
 | Etapa | O que acontece | Onde |
 |---|---|---|
 | 1. Clique no anúncio | UTMs e `fbclid` são gravados na sessão | `src/funnel/tracking.ts` |
-| 2. Página | Estrutura da referência G7: foto em círculo, selo "Mesmo sem carteira assinada", valor mínimo em destaque, botão verde | `src/App.tsx` |
-| 3. Teste (sempre 4 perguntas) | Momento, tipo de trabalho, uma pergunta do perfil e pedido no INSS | `src/funnel/questions.ts` |
+| 2. Página | Estrutura da referência G7: foto em círculo, selo "Mesmo sem carteira assinada", valor mínimo em destaque, botão verde no estilo WhatsApp "Iniciar análise" | `src/App.tsx` |
+| 3. Conversa no estilo WhatsApp (sempre 4 perguntas) | Momento, tipo de trabalho, uma pergunta do perfil e pedido no INSS | `src/funnel/questions.ts` |
 | 4. Filtro | Casos inviáveis recebem explicação e opção de mudar a resposta, sem deixar dados | `src/funnel/qualify.ts` |
 | 5. Formulário | Nome, WhatsApp, cidade/UF e consentimento LGPD | `src/funnel/QuizFunnel.tsx` |
 | 6. Envio | Webhook recebe respostas, resumo, prioridade, alertas, UTMs e o link para chamar a cliente; Pixel registra `Lead` | `tracking.ts` |
-| 7. Tela final | "Em breve, o escritório de advocacia entra em contato com você", com o número que ela informou | `QuizFunnel.tsx` |
+| 7. Fim da conversa | "Nossa equipe de advogados especialistas vai entrar em contato com você." | `QuizFunnel.tsx` |
+| 7a. Relatório | Cada lead qualificado gera um relatório de triagem (campo `relatorio`) | `qualify.ts` |
+| 7b. Mensagem automática | O Make envia a mensagem de modelo aprovada pela Meta só para leads qualificadas (campo `enviar_whatsapp_automatico`) | Make |
 | 8. Contato | A equipe toca em `link_whatsapp_cliente` e a conversa abre com a primeira mensagem pronta | `qualify.ts` |
 
 ### Quem é barrado no teste
@@ -146,7 +148,48 @@ Eventos do Pixel: `PageView`, `QuizIniciado`, `LeadDesqualificado` (com o motivo
 
 Cenário mínimo no Make: Webhook → planilha ou CRM → mensagem para o grupo da equipe com nome, prioridade, alertas, resumo e `link_whatsapp_cliente` → (prioridade A) alerta imediato ao responsável. **Teste o cenário antes de ligar os anúncios:** sem ele, nenhum lead chega ao escritório.
 
-Campos do webhook (`application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, `resumo`, `link_whatsapp_cliente`, cada resposta (`momento`, `vinculo`, `semContribuir`, `provasRurais`, `pedidoInss`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
+Campos do webhook (`application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, `resumo`, `relatorio`, `primeiro_nome`, `enviar_whatsapp_automatico`, `link_whatsapp_cliente`, cada resposta (`momento`, `vinculo`, `semContribuir`, `provasRurais`, `pedidoInss`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
+
+## 4a. Envio automático no WhatsApp (só leads qualificadas)
+
+Quem é barrada na conversa não deixa dados, então tudo o que chega ao webhook já é lead qualificada. O envio automático usa a API oficial do WhatsApp (WhatsApp Business Cloud API, da Meta), que o Make já tem como módulo nativo.
+
+### Cenário no Make
+
+| Ordem | Módulo | O que faz |
+|---|---|---|
+| 1 | Webhooks › Custom webhook | Recebe o lead. A URL gerada vai em `VITE_LEAD_WEBHOOK_URL` |
+| 2 | Google Sheets › Add a row | Registra o lead e o `relatorio` numa planilha |
+| 3 | Gmail › Send an email (ou mensagem no grupo da equipe) | Envia o relatório e o `link_whatsapp_cliente` para a equipe |
+| 4 | Filtro | `enviar_whatsapp_automatico` = `true` |
+| 5 | WhatsApp Business Cloud › Send a Template Message | Envia o modelo aprovado para `whatsapp`, com `primeiro_nome` e `protocolo` |
+| 6 | (cenário 2) WhatsApp Business Cloud › Watch Events | Avisa a equipe quando a cliente responde; a partir daí a conversa é livre por 24 horas |
+
+### Modelo de mensagem para aprovar na Meta
+
+- Nome: `contato_salario_maternidade`
+- Categoria: Utilidade (a Meta pode reclassificar como Marketing)
+- Idioma: Português (BR)
+
+> Olá, {{1}}! Aqui é da G1 Auxílios Previdenciários. Recebemos suas respostas sobre o salário-maternidade (protocolo {{2}}). Nossa equipe de advogados vai continuar seu atendimento por aqui. Podemos conversar agora?
+
+Botões de resposta rápida: "Sim, pode falar" e "Prefiro mais tarde".
+
+### O que precisa existir antes
+
+1. Portfólio empresarial da Meta verificado (com o CNPJ).
+2. Conta do WhatsApp Business Platform com um número dedicado. Um número que já está no aplicativo WhatsApp Business pode ser usado nos dois ao mesmo tempo pelo recurso de coexistência da Meta, se disponível para a conta.
+3. Forma de pagamento cadastrada na Meta.
+4. Modelo de mensagem aprovado.
+5. Conexão "WhatsApp Business Cloud" criada no Make (hoje a conta tem só Asaas e ZapSign).
+
+### Custo
+
+A Meta cobra por mensagem de modelo entregue; respostas dentro da janela de 24 horas aberta pela cliente são gratuitas. Fontes de mercado indicam, para o Brasil, cerca de US$ 0,0068 por mensagem de Utilidade e US$ 0,0625 por mensagem de Marketing. Confirme na tabela oficial da Meta antes de orçar: https://developers.facebook.com/docs/whatsapp/pricing
+
+### O que não usar
+
+APIs não oficiais (que conectam um WhatsApp comum por QR code) violam os termos do WhatsApp, podem levar ao bloqueio do número e expõem dados de clientes.
 
 ## 5. Acessibilidade
 

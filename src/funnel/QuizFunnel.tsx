@@ -1,14 +1,15 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Lock, MessageCircle, ShieldCheck, X } from 'lucide-react';
-import { Answers, QUESTIONS, QUIZ_LENGTH, QuestionId } from './questions';
+import { ChevronLeft, Lock, X } from 'lucide-react';
+import { Answers, QUESTIONS, QUIZ_LENGTH, Question, QuestionId, optionLabel } from './questions';
 import {
   CASE_LABELS,
   DisqualifyReason,
   LeadContact,
   answerSummary,
-  buildProtocol,
+  buildLeadReport,
   buildOfficeOpener,
+  buildProtocol,
   caseSummary,
   disqualification,
   firstName,
@@ -23,9 +24,9 @@ import { BRAND_NAME } from './config';
 
 const FIRST_QUESTION = QUESTIONS[0].id;
 
-// --- Contexto: qualquer CTA da página abre o quiz ---
+// --- Contexto: qualquer CTA da página abre a conversa ---
 
-// `preset` permite começar o quiz já com a primeira resposta escolhida na própria página.
+// `preset` permite começar já com a primeira resposta escolhida na própria página.
 type OpenFunnel = (origin: string, preset?: Answers) => void;
 
 const FunnelContext = createContext<OpenFunnel>(() => {});
@@ -44,7 +45,7 @@ export function FunnelProvider({ children }: { children: React.ReactNode }) {
 
   const close = useCallback(() => {
     setSession(null);
-    // Devolve o foco ao botão que abriu o quiz (leitores de tela e teclado).
+    // Devolve o foco ao botão que abriu a conversa (leitores de tela e teclado).
     window.setTimeout(() => opener.current?.focus(), 0);
   }, []);
 
@@ -54,14 +55,14 @@ export function FunnelProvider({ children }: { children: React.ReactNode }) {
       <MotionConfig reducedMotion="user">
         {children}
         <AnimatePresence>
-          {session && <QuizModal origin={session.origin} preset={session.preset} onClose={close} />}
+          {session && <ChatModal origin={session.origin} preset={session.preset} onClose={close} />}
         </AnimatePresence>
       </MotionConfig>
     </FunnelContext.Provider>
   );
 }
 
-// --- Modal ---
+// --- Conversa no estilo WhatsApp ---
 
 type Phase =
   | { kind: 'questions' }
@@ -74,17 +75,20 @@ const UFS = [
   'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ];
 
-function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answers; onClose: () => void }) {
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+function ChatModal({ origin, preset, onClose }: { origin: string; preset: Answers; onClose: () => void }) {
   const [answers, setAnswers] = useState<Answers>(preset);
   const [step, setStep] = useState(preset[FIRST_QUESTION] ? 1 : 0);
   const [phase, setPhase] = useState<Phase>({ kind: 'questions' });
+  const [typing, setTyping] = useState(true);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
 
   const questions = useMemo(() => visibleQuestions(answers), [answers]);
-  // O formulário conta como uma etapa a mais na barra de progresso.
-  const totalSteps = QUIZ_LENGTH + 1;
-  const currentStep = phase.kind === 'questions' ? step + 1 : totalSteps;
+  const question = questions[step];
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -99,11 +103,24 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
     };
   }, [onClose]);
 
-  // A cada nova tela, o foco vai para o título: o leitor de tela anuncia a pergunta.
+  // "Digitando…" antes de cada nova mensagem, como numa conversa real.
   useEffect(() => {
-    const timer = window.setTimeout(() => titleRef.current?.focus(), 60);
+    setTyping(true);
+    const timer = window.setTimeout(() => setTyping(false), prefersReducedMotion() ? 0 : 700);
     return () => window.clearTimeout(timer);
   }, [step, phase.kind]);
+
+  // Mantém a conversa rolada até a última mensagem e leva o foco para onde a pessoa vai agir.
+  useEffect(() => {
+    const log = logRef.current;
+    if (log) log.scrollTo({ top: log.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    if (typing) return;
+    const target =
+      phase.kind === 'questions' || phase.kind === 'disqualified' || phase.kind === 'qualified'
+        ? footerRef.current?.querySelector<HTMLElement>('button')
+        : logRef.current?.querySelector<HTMLElement>('input[name="nome"]');
+    window.setTimeout(() => target?.focus({ preventScroll: true }), 50);
+  }, [typing, phase.kind, step]);
 
   const answer = (id: QuestionId, value: string) => {
     // Trocar uma resposta muda o roteiro: descarta respostas de perguntas que deixaram de aparecer.
@@ -131,7 +148,7 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
       if (step > 0) setStep(step - 1);
       return;
     }
-    // Do formulário ou de uma tela de recusa, volta para a última pergunta respondida.
+    // Do formulário ou de uma recusa, volta para a última pergunta respondida.
     setPhase({ kind: 'questions' });
     setStep(phase.kind === 'form' ? questions.length - 1 : step);
   };
@@ -140,11 +157,13 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
     const result = qualify(answers);
     const protocol = buildProtocol(result);
     const clientPhone = `55${contact.whatsapp}`;
+    const attribution = getAttribution();
 
     sendLead({
       protocolo: protocol,
       criado_em: new Date().toISOString(),
       nome: contact.nome.trim(),
+      primeiro_nome: firstName(contact.nome),
       whatsapp: clientPhone,
       cidade: contact.cidade.trim(),
       uf: contact.uf,
@@ -155,25 +174,42 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
       alertas: result.flags.join(' | '),
       respostas: answerSummary(answers).map(({ label, value }) => `${label}: ${value}`).join(' | '),
       resumo: caseSummary(contact, answers),
+      relatorio: buildLeadReport({
+        contact,
+        answers,
+        result,
+        protocol,
+        createdAt: new Date(),
+        origin: [attribution.utm_source, attribution.utm_campaign, attribution.utm_content].filter(Boolean).join(' / ') || origin,
+      }),
+      // Só leads qualificados chegam aqui: o Make usa este campo para disparar a mensagem automática.
+      enviar_whatsapp_automatico: true,
       // A equipe toca neste link e já abre a conversa com a cliente, com a primeira mensagem escrita.
       link_whatsapp_cliente: whatsappLink(clientPhone, buildOfficeOpener(contact, protocol)),
       ...answers,
       origem_cta: origin,
       consentimento_lgpd: true,
-      ...getAttribution(),
+      ...attribution,
     });
     trackEvent('Lead', { content_category: result.caseType, content_name: result.tier, origem: origin });
 
     setPhase({ kind: 'qualified', contact });
   };
 
-  const canGoBack = (phase.kind === 'questions' && step > 0) || phase.kind === 'form' || phase.kind === 'disqualified';
-  const question = questions[step];
-  const showProgress = phase.kind === 'questions' || phase.kind === 'form';
+  // Perguntas já respondidas aparecem como histórico da conversa.
+  const answered: Question[] =
+    phase.kind === 'questions'
+      ? questions.slice(0, step).filter((q) => answers[q.id])
+      : phase.kind === 'disqualified'
+        ? questions.slice(0, step + 1).filter((q) => answers[q.id])
+        : questions.filter((q) => answers[q.id]);
+
+  const progressText =
+    phase.kind === 'questions' ? `Pergunta ${step + 1} de ${QUIZ_LENGTH}` : phase.kind === 'form' ? 'Última etapa' : 'Análise do salário-maternidade';
 
   return (
     <motion.div
-      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-brand-900/70 sm:p-4"
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 sm:p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -183,114 +219,171 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="quiz-title"
-        className="relative w-full sm:max-w-xl max-h-[100dvh] sm:max-h-[92vh] overflow-y-auto bg-white rounded-t-[28px] sm:rounded-[28px] shadow-2xl"
+        aria-labelledby="chat-title"
+        className="relative w-full sm:max-w-md h-[100dvh] sm:h-[min(800px,94vh)] flex flex-col bg-wa-chat sm:rounded-2xl overflow-hidden shadow-2xl"
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 40, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 bg-white px-5 sm:px-6 pt-4 pb-4 border-b border-brand-100">
-          <div className="flex items-center justify-between mb-3 min-h-[48px]">
-            {canGoBack ? (
-              <button
-                type="button"
-                onClick={back}
-                className="flex items-center gap-1 min-h-[48px] pr-3 text-base font-bold text-brand-700 hover:text-brand-900"
-              >
-                <ChevronLeft size={22} aria-hidden="true" /> Voltar
-              </button>
-            ) : phase.kind === 'questions' ? (
-              <span className="text-base font-semibold text-brand-700">Leva menos de 1 minuto</span>
-            ) : (
-              <span />
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fechar o teste"
-              className="w-12 h-12 -mr-2 flex items-center justify-center rounded-full text-gray-700 hover:bg-brand-50"
-            >
-              <X size={26} aria-hidden="true" />
-            </button>
+        <div className="flex items-center gap-3 bg-wa-header text-white px-3 py-2.5 shrink-0">
+          <span className="w-11 h-11 shrink-0 rounded-full bg-white border-2 border-black flex items-center justify-center" aria-hidden="true">
+            <span className="font-display text-base font-extrabold text-black tracking-tighter">G1</span>
+          </span>
+          <div className="flex-1 min-w-0">
+            <h2 id="chat-title" className="font-bold text-lg leading-tight truncate">
+              {BRAND_NAME}
+            </h2>
+            <p className="text-sm text-white/90 truncate">{progressText}</p>
           </div>
-          {showProgress && (
-            <div
-              role="progressbar"
-              aria-label="Andamento do teste"
-              aria-valuemin={1}
-              aria-valuemax={totalSteps}
-              aria-valuenow={currentStep}
-              aria-valuetext={`Etapa ${currentStep} de ${totalSteps}`}
-              className="h-2.5 bg-brand-100 rounded-full overflow-hidden"
-            >
-              <motion.div
-                className="h-full bg-brand-600 rounded-full"
-                animate={{ width: `${Math.round((currentStep / totalSteps) * 100)}%` }}
-              />
-            </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar a conversa"
+            className="w-12 h-12 shrink-0 flex items-center justify-center rounded-full hover:bg-white/10"
+          >
+            <X size={26} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div ref={logRef} role="log" aria-live="polite" aria-label="Conversa" tabIndex={0} className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
+          <p className="mx-auto w-fit max-w-[90%] text-center text-sm text-gray-800 bg-[#fff5c4] rounded-lg px-3 py-1.5 mb-3">
+            <Lock size={13} className="inline -mt-0.5 mr-1" aria-hidden="true" />
+            Suas respostas ficam protegidas por sigilo profissional.
+          </p>
+          <Bubble from="bot">Olá! Aqui é a assistente da {BRAND_NAME}.</Bubble>
+          <Bubble from="bot">Vou te fazer {QUIZ_LENGTH} perguntas rápidas para ver se você pode ter direito ao salário-maternidade.</Bubble>
+
+          {answered.map((q) => (
+            <React.Fragment key={q.id}>
+              <Bubble from="bot">{q.title}</Bubble>
+              <Bubble from="user">{optionLabel(q.id, answers[q.id])}</Bubble>
+            </React.Fragment>
+          ))}
+
+          {typing ? (
+            <TypingBubble />
+          ) : (
+            <>
+              {phase.kind === 'questions' && question && (
+                <Bubble from="bot">
+                  <span className="block font-bold">{question.title}</span>
+                  {question.subtitle && <span className="block mt-1 text-base text-gray-700">{question.subtitle}</span>}
+                </Bubble>
+              )}
+
+              {phase.kind === 'form' && (
+                <>
+                  <Bubble from="bot">Pelas suas respostas, seu caso pode ser analisado pela nossa equipe.</Bubble>
+                  <Bubble from="bot">Para a equipe falar com você, preencha seus dados:</Bubble>
+                  <ContactForm onSubmit={submit} />
+                </>
+              )}
+
+              {phase.kind === 'qualified' && (
+                <>
+                  <Bubble from="user">Dados enviados</Bubble>
+                  <Bubble from="bot">
+                    <span className="block font-bold">Pronto, {firstName(phase.contact.nome)}! Recebemos suas respostas.</span>
+                  </Bubble>
+                  <Bubble from="bot">
+                    Nossa equipe de advogados especialistas vai entrar em contato com você.
+                  </Bubble>
+                </>
+              )}
+
+              {phase.kind === 'disqualified' && (
+                <>
+                  <Bubble from="bot">
+                    <span className="block font-bold">{DISQUALIFIED_CONTENT[phase.reason].title}</span>
+                  </Bubble>
+                  <Bubble from="bot">
+                    {DISQUALIFIED_CONTENT[phase.reason].text}
+                  </Bubble>
+                </>
+              )}
+            </>
           )}
         </div>
 
-        <div className="px-5 sm:px-6 pb-8 pt-6">
-          <AnimatePresence mode="wait">
-            {phase.kind === 'questions' && question && (
-              <motion.div key={question.id} initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }}>
-                <p className="text-base font-semibold text-gray-700 mb-2">
-                  Pergunta {step + 1} de {QUIZ_LENGTH}
-                </p>
-                <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 leading-snug mb-2 outline-none">
-                  {question.title}
-                </h2>
-                {question.subtitle && <p className="text-base text-gray-700 mb-2">{question.subtitle}</p>}
-                <div className="mt-6 space-y-3" role="group" aria-labelledby="quiz-title">
-                  {question.options.map((option) => {
-                    const selected = answers[question.id] === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => answer(question.id, option.value)}
-                        className={`w-full min-h-[64px] flex items-center justify-between gap-3 text-left px-5 py-4 rounded-2xl border-2 text-lg transition-colors ${
-                          selected
-                            ? 'border-brand-600 bg-brand-50 text-brand-900'
-                            : 'border-brand-200 bg-cream text-gray-900 hover:border-brand-500 hover:bg-brand-50'
-                        }`}
-                      >
-                        <span>
-                          <span className="block font-bold">{option.label}</span>
-                          {option.hint && <span className="block text-base text-gray-700 mt-0.5">{option.hint}</span>}
-                        </span>
-                        <ChevronRight size={22} className="shrink-0 text-brand-600" aria-hidden="true" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
+        <div ref={footerRef} className="shrink-0 bg-[#f0f2f5] border-t border-black/10 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
+          {phase.kind === 'questions' && question && !typing && (
+            <div role="group" aria-label={question.title} className="space-y-2">
+              {question.options.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={answers[question.id] === option.value}
+                  onClick={() => answer(question.id, option.value)}
+                  className="w-full min-h-[56px] px-4 py-2.5 rounded-2xl bg-white border-2 border-wa-teal text-wa-teal hover:bg-wa-bubble text-left"
+                >
+                  <span className="block text-lg font-bold leading-snug">{option.label}</span>
+                  {option.hint && <span className="block text-base text-gray-700">{option.hint}</span>}
+                </button>
+              ))}
+            </div>
+          )}
 
-            {phase.kind === 'form' && (
-              <motion.div key="form" initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }}>
-                <ContactForm onSubmit={submit} titleRef={titleRef} />
-              </motion.div>
-            )}
+          {phase.kind === 'disqualified' && !typing && (
+            <div className="space-y-2">
+              <button type="button" onClick={back} className="w-full min-h-[56px] rounded-2xl bg-wa text-wa-ink hover:bg-wa-hover font-bold text-lg">
+                Mudar minha resposta
+              </button>
+              <button type="button" onClick={onClose} className="w-full min-h-[56px] rounded-2xl bg-white border-2 border-wa-teal text-wa-teal font-bold text-lg">
+                Voltar ao site
+              </button>
+            </div>
+          )}
 
-            {phase.kind === 'qualified' && (
-              <motion.div key="qualified" initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <QualifiedScreen contact={phase.contact} onClose={onClose} titleRef={titleRef} />
-              </motion.div>
-            )}
+          {phase.kind === 'qualified' && !typing && (
+            <button type="button" onClick={onClose} className="w-full min-h-[56px] rounded-2xl bg-white border-2 border-wa-teal text-wa-teal font-bold text-lg">
+              Voltar ao site
+            </button>
+          )}
 
-            {phase.kind === 'disqualified' && (
-              <motion.div key="disqualified" initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <DisqualifiedScreen reason={phase.reason} onClose={onClose} onBack={back} titleRef={titleRef} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {((phase.kind === 'questions' && step > 0) || phase.kind === 'form') && (
+            <button
+              type="button"
+              onClick={back}
+              className="mt-2 mx-auto flex items-center gap-1 min-h-[44px] px-3 text-base font-semibold text-gray-800 hover:text-black"
+            >
+              <ChevronLeft size={20} aria-hidden="true" /> Corrigir a resposta anterior
+            </button>
+          )}
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+function Bubble({ from, children }: { from: 'bot' | 'user'; children: React.ReactNode }) {
+  const isBot = from === 'bot';
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`w-fit max-w-[85%] px-3.5 py-2 text-lg leading-snug text-[#111b21] shadow-sm ${
+        isBot ? 'bg-white rounded-2xl rounded-tl-sm' : 'ml-auto bg-wa-bubble rounded-2xl rounded-tr-sm'
+      }`}
+    >
+      <span className="sr-only">{isBot ? `${BRAND_NAME}: ` : 'Você: '}</span>
+      {children}
+    </motion.div>
+  );
+}
+
+function TypingBubble() {
+  return (
+    <div className="w-fit bg-white rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm flex gap-1.5" aria-label="Digitando" role="status">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="w-2.5 h-2.5 rounded-full bg-gray-500"
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -312,11 +405,9 @@ function trapFocus(e: KeyboardEvent, container: HTMLElement | null) {
   }
 }
 
-type TitleRef = React.RefObject<HTMLHeadingElement | null>;
+// --- Formulário dentro da conversa ---
 
-// --- Etapas finais ---
-
-function ContactForm({ onSubmit, titleRef }: { onSubmit: (contact: LeadContact) => void; titleRef: TitleRef }) {
+function ContactForm({ onSubmit }: { onSubmit: (contact: LeadContact) => void }) {
   const [nome, setNome] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [cidade, setCidade] = useState('');
@@ -345,7 +436,7 @@ function ContactForm({ onSubmit, titleRef }: { onSubmit: (contact: LeadContact) 
   };
 
   const inputClass = (field: string) =>
-    `w-full min-h-[56px] scroll-mt-40 px-4 py-3 rounded-2xl border-2 text-lg text-gray-900 bg-white focus:outline-none focus:border-brand-700 ${
+    `w-full min-h-[56px] scroll-mt-4 px-4 py-3 rounded-xl border-2 text-lg text-gray-900 bg-white focus:outline-none focus:border-wa-teal ${
       errors[field] ? 'border-red-700' : 'border-gray-400'
     }`;
   const a11y = (field: string) => ({
@@ -356,75 +447,70 @@ function ContactForm({ onSubmit, titleRef }: { onSubmit: (contact: LeadContact) 
   });
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} noValidate>
-      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 leading-snug mb-2 outline-none">
-        Falta pouco! Como o escritório fala com você?
-      </h2>
-      <p className="text-base text-gray-700 mb-6">A equipe da {BRAND_NAME} vai entrar em contato com você por este WhatsApp.</p>
-
-      <div className="space-y-5">
-        <Field label="Seu nome completo" field="nome" error={errors.nome}>
-          <input {...a11y('nome')} className={inputClass('nome')} value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
+    <motion.form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      noValidate
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white rounded-2xl p-4 shadow-sm space-y-4"
+    >
+      <Field label="Seu nome completo" field="nome" error={errors.nome}>
+        <input {...a11y('nome')} className={inputClass('nome')} value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
+      </Field>
+      <Field label="Seu WhatsApp com DDD" field="whatsapp" error={errors.whatsapp}>
+        <input
+          {...a11y('whatsapp')}
+          className={inputClass('whatsapp')}
+          value={whatsapp}
+          onChange={(e) => setWhatsapp(formatWhatsApp(e.target.value))}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel-national"
+          placeholder="(11) 91234-5678"
+        />
+      </Field>
+      <div className="grid grid-cols-[1fr_100px] gap-3">
+        <Field label="Cidade" field="cidade" error={errors.cidade}>
+          <input {...a11y('cidade')} className={inputClass('cidade')} value={cidade} onChange={(e) => setCidade(e.target.value)} autoComplete="address-level2" />
         </Field>
-        <Field label="Seu WhatsApp com DDD" field="whatsapp" error={errors.whatsapp}>
-          <input
-            {...a11y('whatsapp')}
-            className={inputClass('whatsapp')}
-            value={whatsapp}
-            onChange={(e) => setWhatsapp(formatWhatsApp(e.target.value))}
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel-national"
-            placeholder="(11) 91234-5678"
-          />
+        <Field label="Estado" field="uf" error={errors.uf}>
+          <select {...a11y('uf')} className={inputClass('uf')} value={uf} onChange={(e) => setUf(e.target.value)} autoComplete="address-level1">
+            <option value="">UF</option>
+            {UFS.map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
         </Field>
-        <div className="grid grid-cols-[1fr_110px] gap-3">
-          <Field label="Cidade" field="cidade" error={errors.cidade}>
-            <input {...a11y('cidade')} className={inputClass('cidade')} value={cidade} onChange={(e) => setCidade(e.target.value)} autoComplete="address-level2" />
-          </Field>
-          <Field label="Estado" field="uf" error={errors.uf}>
-            <select {...a11y('uf')} className={inputClass('uf')} value={uf} onChange={(e) => setUf(e.target.value)} autoComplete="address-level1">
-              <option value="">UF</option>
-              {UFS.map((u) => (
-                <option key={u} value={u}>{u}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <div>
-          <label htmlFor="campo-consent" className="flex items-start gap-3 text-base text-gray-800 leading-relaxed cursor-pointer">
-            <input
-              {...a11y('consent')}
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-              className="mt-1 w-6 h-6 accent-brand-600 shrink-0"
-            />
-            <span>Autorizo o uso destes dados e das minhas respostas só para entrarem em contato e analisarem o meu caso (Lei Geral de Proteção de Dados).</span>
-          </label>
-          {errors.consent && (
-            <p id="erro-consent" className="mt-1 text-base text-red-800 font-semibold">{errors.consent}</p>
-          )}
-        </div>
       </div>
-
-      <button
-        type="submit"
-        className="mt-7 w-full min-h-[60px] bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-bold text-xl flex items-center justify-center gap-2"
-      >
-        Ver o resultado <ChevronRight aria-hidden="true" />
+      <div>
+        <label htmlFor="campo-consent" className="flex items-start gap-3 text-base text-gray-800 leading-relaxed cursor-pointer">
+          <input
+            {...a11y('consent')}
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            className="mt-1 w-6 h-6 accent-wa-teal shrink-0"
+          />
+          <span>
+            Autorizo a {BRAND_NAME} a usar estes dados e minhas respostas para analisar meu caso e falar comigo pelo WhatsApp (Lei Geral de Proteção de Dados).
+          </span>
+        </label>
+        {errors.consent && (
+          <p id="erro-consent" className="mt-1 text-base text-red-800 font-semibold">{errors.consent}</p>
+        )}
+      </div>
+      <button type="submit" className="w-full min-h-[60px] bg-wa hover:bg-wa-hover text-wa-ink rounded-xl font-bold text-xl">
+        Enviar
       </button>
-      <p className="mt-4 flex items-center justify-center gap-2 text-base text-gray-700">
-        <Lock size={16} aria-hidden="true" /> Seus dados ficam protegidos por sigilo profissional
-      </p>
-    </form>
+    </motion.form>
   );
 }
 
 function Field({ label, field, error, children }: { label: string; field: string; error?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label htmlFor={`campo-${field}`} className="block text-lg font-bold text-brand-900 mb-1.5">
+      <label htmlFor={`campo-${field}`} className="block text-lg font-bold text-gray-900 mb-1">
         {label}
       </label>
       {children}
@@ -437,93 +523,25 @@ function Field({ label, field, error, children }: { label: string; field: string
   );
 }
 
-function QualifiedScreen({ contact, onClose, titleRef }: { contact: LeadContact; onClose: () => void; titleRef: TitleRef }) {
-  return (
-    <div className="text-center">
-      <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-        <ShieldCheck className="text-whatsapp" size={34} aria-hidden="true" />
-      </div>
-      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 mb-3 outline-none">
-        Pronto, {firstName(contact.nome)}! Recebemos suas respostas.
-      </h2>
-      <p className="text-lg text-gray-800 leading-relaxed mb-6">
-        Em breve, a <strong>{BRAND_NAME}</strong> entra em contato com você pelo WhatsApp.
-      </p>
-      <div className="flex items-center justify-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4 mb-8">
-        <MessageCircle className="text-whatsapp shrink-0" size={26} aria-hidden="true" />
-        <p className="text-lg text-gray-900">
-          Fique de olho no número <strong className="whitespace-nowrap">{formatWhatsApp(contact.whatsapp)}</strong>
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onClose}
-        className="w-full min-h-[56px] border-2 border-brand-700 text-brand-800 rounded-2xl font-bold text-lg hover:bg-brand-50"
-      >
-        Voltar ao site
-      </button>
-    </div>
-  );
-}
-
 const DISQUALIFIED_CONTENT: Record<DisqualifyReason, { title: string; text: string }> = {
   prazo: {
-    title: 'O prazo para esse filho já passou',
-    text: 'O pedido do salário-maternidade tem prazo de 5 anos. Para filhos com mais de 5 anos, em regra, não é mais possível receber. Se você tiver outro filho mais novo, faça o teste de novo.'
+    title: 'O prazo para esse filho já passou.',
+    text: 'O pedido do salário-maternidade tem prazo de 5 anos. Para filhos com mais de 5 anos, em regra, não é mais possível receber. Se você tiver outro filho mais novo, pode fazer a análise de novo.',
   },
   semVinculo: {
-    title: 'Por enquanto, o INSS não paga nesse caso',
-    text: 'O salário-maternidade é pago a quem trabalhou registrada, pagou o INSS ou trabalha no campo. Se você começar a pagar o INSS, pode ter direito numa próxima gravidez.'
+    title: 'Por enquanto, o INSS não paga nesse caso.',
+    text: 'O salário-maternidade é pago a quem trabalhou registrada, pagou o INSS ou trabalha no campo. Se você começar a pagar o INSS, pode ter direito numa próxima gravidez.',
   },
   empregada: {
-    title: 'Quem paga é a sua empresa',
-    text: 'Quando você continua empregada, a própria empresa paga o salário-maternidade e depois acerta com o INSS. Fale com o RH. Se a empresa se recusar a pagar, procure orientação.'
+    title: 'Quem paga é a sua empresa.',
+    text: 'Quando você continua empregada, a própria empresa paga o salário-maternidade e depois acerta com o INSS. Fale com o RH. Se a empresa se recusar a pagar, procure orientação.',
   },
   semQualidade: {
-    title: 'O tempo de proteção do INSS acabou',
-    text: 'Depois que a pessoa para de trabalhar registrada ou de pagar o INSS, a proteção dura um tempo limitado: até 3 anos nos casos mais favoráveis. Se você trabalhou ou pagou o INSS depois disso, volte e mude a resposta.'
+    title: 'O tempo de proteção do INSS acabou.',
+    text: 'Depois que a pessoa para de trabalhar registrada ou de pagar o INSS, a proteção dura um tempo limitado: até 3 anos nos casos mais favoráveis. Se você trabalhou ou pagou o INSS depois disso, mude a resposta.',
   },
   jaRecebeu: {
-    title: 'Você já recebeu o benefício',
-    text: 'O salário-maternidade é pago uma vez para cada nascimento ou adoção. Se você tiver outro filho, pode fazer o teste de novo.'
+    title: 'Você já recebeu o benefício.',
+    text: 'O salário-maternidade é pago uma vez para cada nascimento ou adoção. Se você tiver outro filho, pode fazer a análise de novo.',
   },
 };
-
-function DisqualifiedScreen({
-  reason,
-  onClose,
-  onBack,
-  titleRef,
-}: {
-  reason: DisqualifyReason;
-  onClose: () => void;
-  onBack: () => void;
-  titleRef: TitleRef;
-}) {
-  const content = DISQUALIFIED_CONTENT[reason];
-
-  return (
-    <div className="text-center">
-      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 mb-3 outline-none">
-        {content.title}
-      </h2>
-      <p className="text-lg text-gray-800 leading-relaxed mb-8">{content.text}</p>
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="w-full min-h-[56px] bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-bold text-lg"
-        >
-          Mudar minha resposta
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full min-h-[56px] border-2 border-brand-600 text-brand-700 rounded-2xl font-bold text-lg hover:bg-brand-50"
-        >
-          Voltar ao site
-        </button>
-      </div>
-    </div>
-  );
-}

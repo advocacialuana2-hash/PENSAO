@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildProtocol,
+  buildLeadReport,
   buildOfficeOpener,
   caseSummary,
   disqualification,
@@ -60,6 +61,20 @@ test('resumo vai para a equipe e a primeira mensagem é do escritório, sem dado
   assert.match(opener, /^Olá, Maria! Aqui é da G1 Auxílios Previdenciários\./);
   assert.match(opener, /protocolo SM-CIA-K7Q2/);
   assert.doesNotMatch(opener + resumo, /quente|pontua|alerta/i);
+});
+
+test('relatório traz cliente, prioridade, alertas e documentos do perfil', () => {
+  const contact = { nome: 'Joana Lima', whatsapp: '31991234567', cidade: 'Belo Horizonte', uf: 'MG' };
+  const answers = { momento: 'nasceu', vinculo: 'rural', provasRurais: 'algumas', pedidoInss: 'negado' };
+  const result = qualify(answers);
+  const report = buildLeadReport({ contact, answers, result, protocol: 'SM-RUA-TEST', createdAt: new Date('2026-10-27T15:00:00Z'), origin: 'MetaADS' });
+  assert.match(report, /RELATÓRIO DE TRIAGEM — SM-RUA-TEST/);
+  assert.match(report, /WhatsApp: \(31\) 99123-4567/);
+  assert.match(report, /Perfil: .*rural/);
+  assert.match(report, /Prioridade: A/);
+  assert.match(report, /Autodeclaração rural/);
+  assert.match(report, /Carta de indeferimento/);
+  assert.match(report, /Origem do clique: MetaADS/);
 });
 
 test('valida celular brasileiro', () => {

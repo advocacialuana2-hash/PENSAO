@@ -126,6 +126,77 @@ export function buildOfficeOpener(contact: LeadContact, protocol: string): strin
   ].join(' ');
 }
 
+const TIER_LABELS: Record<Tier, string> = {
+  quente: 'A (quente): responder em até 5 minutos',
+  morno: 'B (morno): responder em até 1 hora',
+  frio: 'C (frio): responder no mesmo dia',
+};
+
+const DOCUMENTS: Record<CaseType, string[]> = {
+  desempregada: [
+    'RG/CNH e CPF',
+    'Comprovante de residência',
+    'Certidão de nascimento (ou ultrassom/atestado com data provável do parto)',
+    'Carteira de trabalho e termo de rescisão',
+    'Comprovante de seguro-desemprego, se houver',
+  ],
+  contribuinte: [
+    'RG/CNH e CPF',
+    'Comprovante de residência',
+    'Certidão de nascimento (ou ultrassom/atestado com data provável do parto)',
+    'Guias pagas ao INSS (DAS do MEI ou carnê)',
+  ],
+  rural: [
+    'RG/CNH e CPF',
+    'Comprovante de residência',
+    'Certidão de nascimento (ou ultrassom/atestado com data provável do parto)',
+    'Autodeclaração rural e documentos do trabalho no campo',
+  ],
+};
+
+export interface ReportContext {
+  contact: LeadContact;
+  answers: Answers;
+  result: QualifyResult;
+  protocol: string;
+  createdAt: Date;
+  origin?: string;
+}
+
+// Relatório de triagem enviado ao escritório com cada lead qualificado.
+export function buildLeadReport({ contact, answers, result, protocol, createdAt, origin }: ReportContext): string {
+  const documents = [...DOCUMENTS[result.caseType]];
+  if (answers.pedidoInss === 'negado') documents.push('Carta de indeferimento do INSS');
+  const lines = [
+    `RELATÓRIO DE TRIAGEM — ${protocol}`,
+    `Recebido em: ${createdAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+    '',
+    'CLIENTE',
+    `Nome: ${contact.nome.trim()}`,
+    `WhatsApp: ${formatWhatsApp(contact.whatsapp)}`,
+    `Cidade: ${contact.cidade.trim()}/${contact.uf}`,
+    '',
+    'ENQUADRAMENTO',
+    `Perfil: ${CASE_LABELS[result.caseType]}`,
+    `Prioridade: ${TIER_LABELS[result.tier]} (pontuação ${result.score})`,
+    '',
+    'RESPOSTAS',
+    ...answerSummary(answers).map(({ label, value }) => `• ${label}: ${value}`),
+    '',
+    'PONTOS DE ATENÇÃO',
+    ...(result.flags.length ? result.flags.map((f) => `• ${f}`) : ['• Nenhum']),
+    '',
+    'DOCUMENTOS A PEDIR',
+    ...documents.map((d) => `• ${d}`),
+    '',
+    'CONFIRMAR NO PRIMEIRO CONTATO',
+    '• Se já existe advogado no caso (Código de Ética da OAB, art. 14)',
+    '• Datas: parto ou data provável, saída do último emprego, últimas contribuições (CNIS)',
+  ];
+  if (origin) lines.push('', `Origem do clique: ${origin}`);
+  return lines.join('\n');
+}
+
 // Link para a equipe abrir a conversa com a cliente já com a primeira mensagem escrita.
 export const whatsappLink = (number: string, message: string) =>
   `https://wa.me/${number}?text=${encodeURIComponent(message)}`;

@@ -11,11 +11,11 @@ import {
   HeartHandshake,
   Info,
   Lock,
-  MessageCircle,
   Smartphone,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FunnelProvider, useOpenFunnel } from './funnel/QuizFunnel';
+import { WhatsAppIcon } from './funnel/WhatsAppIcon';
 import { BRAND_NAME, SALARIO_MINIMO, SALARIO_MINIMO_ANO, VALOR_MINIMO_BENEFICIO, formatBRL } from './funnel/config';
 
 // --- Seções ---
@@ -25,7 +25,7 @@ const SkipLink = () => (
     href="#comecar"
     className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:bg-white focus:text-brand-900 focus:px-5 focus:py-3 focus:rounded-xl focus:font-bold focus:shadow-lg"
   >
-    Ir direto para o teste
+    Ir direto para a análise
   </a>
 );
 
@@ -53,9 +53,10 @@ const Header = () => {
         <button
           type="button"
           onClick={() => openFunnel('topo')}
-          className="shrink-0 min-h-[48px] bg-whatsapp hover:bg-whatsapp-dark text-white px-5 rounded-xl font-bold text-base shadow-md transition-colors"
+          className="shrink-0 min-h-[48px] inline-flex items-center gap-2 bg-wa hover:bg-wa-hover text-wa-ink px-4 rounded-xl font-bold text-base shadow-md transition-colors"
         >
-          Verificar meu direito
+          <WhatsAppIcon size={22} />
+          Iniciar análise
         </button>
       </div>
     </header>
@@ -111,12 +112,13 @@ const Hero = () => {
           id="comecar"
           type="button"
           onClick={() => openFunnel('topo_botao')}
-          className="w-full sm:w-auto min-h-[64px] px-10 bg-whatsapp hover:bg-whatsapp-dark text-white rounded-2xl font-display font-bold text-xl uppercase tracking-wide shadow-xl shadow-green-900/20 transition-colors"
+          className="w-full sm:w-auto min-h-[64px] px-10 inline-flex items-center justify-center gap-3 bg-wa hover:bg-wa-hover text-wa-ink rounded-2xl font-display font-bold text-xl uppercase tracking-wide shadow-xl shadow-green-900/20 transition-colors"
         >
-          Quero verificar agora
+          <WhatsAppIcon size={28} />
+          Iniciar análise
         </button>
         <p className="mt-4 text-base text-gray-800">
-          <strong className="text-brand-700">Leva 1 minuto</strong> e não tem compromisso.
+          <strong className="text-brand-700">Leva 1 minuto</strong> e não tem compromisso. Nossa equipe fala com você pelo WhatsApp.
         </p>
         <p className="mt-6 text-sm sm:text-base text-gray-700">
           *Valor mínimo para quem tem direito: 4 meses de salário mínimo de {SALARIO_MINIMO_ANO} ({formatBRL(SALARIO_MINIMO)}).
@@ -140,7 +142,7 @@ const Highlights = () => (
         {[
           { value: '120 dias', label: 'de salário-maternidade pagos pelo INSS' },
           { value: '4 perguntas', label: 'para saber se você pode ter direito' },
-          { value: '100% on-line', label: 'do teste à assinatura, tudo pelo celular' },
+          { value: '100% on-line', label: 'da análise à assinatura, tudo pelo celular' },
         ].map((item) => (
           <div key={item.value} className="py-6 flex flex-col-reverse">
             <dt className="text-lg text-gray-800 mt-1">{item.label}</dt>
@@ -209,9 +211,9 @@ const WhoCanReceive = () => {
           <button
             type="button"
             onClick={() => openFunnel('quem_tem_direito')}
-            className="min-h-[60px] bg-brand-600 hover:bg-brand-700 text-white px-8 rounded-2xl font-bold text-lg transition-colors inline-flex items-center gap-2"
+            className="min-h-[60px] bg-wa hover:bg-wa-hover text-wa-ink px-8 rounded-2xl font-bold text-lg transition-colors inline-flex items-center gap-2 shadow-md"
           >
-            Descobrir se eu tenho direito <ChevronRight size={22} aria-hidden="true" />
+            <WhatsAppIcon size={24} /> Iniciar análise
           </button>
         </div>
       </div>
@@ -227,7 +229,7 @@ const HowItWorks = () => (
       </h2>
       <ol className="grid md:grid-cols-3 gap-6">
         {[
-          { title: 'Faça o teste', desc: 'São poucas perguntas. É só tocar na resposta.' },
+          { title: 'Inicie a análise', desc: 'Toque no botão verde e responda 4 perguntas na conversa.' },
           { title: 'O escritório chama você', desc: 'Em breve, uma pessoa do escritório fala com você pelo WhatsApp e explica tudo.' },
           { title: 'A gente cuida do pedido', desc: 'Você assina pelo celular e a equipe faz o pedido no INSS.' },
         ].map((item, i) => (
@@ -293,14 +295,14 @@ const FinalCta = () => {
           Descubra agora se você tem direito
         </h2>
         <p className="text-lg sm:text-xl text-white mb-8 max-w-xl mx-auto">
-          Faça o teste e continue a conversa com a gente pelo WhatsApp.
+          Responda 4 perguntas e nossa equipe fala com você pelo WhatsApp.
         </p>
         <button
           type="button"
           onClick={() => openFunnel('cta_final')}
-          className="min-h-[60px] bg-white text-brand-800 hover:bg-brand-50 px-10 rounded-2xl font-bold text-xl transition-colors inline-flex items-center gap-2"
+          className="min-h-[60px] bg-wa hover:bg-wa-hover text-wa-ink px-10 rounded-2xl font-bold text-xl transition-colors inline-flex items-center gap-2"
         >
-          Fazer o teste <ChevronRight aria-hidden="true" />
+          <WhatsAppIcon size={26} /> Iniciar análise
         </button>
       </div>
     </section>
@@ -341,10 +343,10 @@ const FloatingCta = () => {
       style={{ pointerEvents: visible ? 'auto' : 'none' }}
       aria-hidden={!visible}
       tabIndex={visible ? 0 : -1}
-      className="fixed bottom-5 right-5 z-50 min-h-[56px] flex items-center gap-2 bg-whatsapp hover:bg-whatsapp-dark text-white pl-4 pr-5 rounded-full font-bold text-lg shadow-xl"
+      className="fixed bottom-5 right-5 z-50 min-h-[56px] flex items-center gap-2 bg-wa hover:bg-wa-hover text-wa-ink pl-4 pr-5 rounded-full font-bold text-lg shadow-xl"
     >
-      <MessageCircle size={24} aria-hidden="true" />
-      Fazer o teste
+      <WhatsAppIcon size={26} />
+      Iniciar análise
     </motion.button>
   );
 };
