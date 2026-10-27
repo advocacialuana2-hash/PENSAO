@@ -23,7 +23,9 @@ ACOES = {
     "esperar": {"segundos"},
     "conferir_texto": {"texto"},
     "capturar_protocolo": {"regex"},
+    "extrair": {"seletor", "campo"},
 }
+MODOS_EXTRAIR = {"texto", "lista", "tabela"}
 NOME_VALIDO = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 VARIAVEL = re.compile(r"\{(\w+)\}")
 
@@ -36,7 +38,8 @@ def validar(roteiro: dict, nome: str = "") -> dict:
     passos = roteiro.get("passos")
     if not isinstance(passos, list) or not passos:
         raise RoteiroInvalido(f"Roteiro {nome}: 'passos' precisa ser uma lista não vazia.")
-    finais = 0
+    consulta = roteiro.get("tipo") == "consulta"
+    finais = extracoes = 0
     for i, passo in enumerate(passos, 1):
         acao = passo.get("acao")
         if acao not in ACOES:
@@ -44,7 +47,16 @@ def validar(roteiro: dict, nome: str = "") -> dict:
         faltando = ACOES[acao] - passo.keys()
         if faltando:
             raise RoteiroInvalido(f"Roteiro {nome}, passo {i} ({acao}): faltam {sorted(faltando)}.")
+        if acao == "extrair" and passo.get("modo", "texto") not in MODOS_EXTRAIR:
+            raise RoteiroInvalido(f"Roteiro {nome}, passo {i}: modo de extração deve ser {sorted(MODOS_EXTRAIR)}.")
         finais += bool(passo.get("envio_final"))
+        extracoes += acao == "extrair"
+    if consulta:
+        if finais:
+            raise RoteiroInvalido(f"Roteiro {nome}: roteiro de consulta não pode ter envio final.")
+        if not extracoes:
+            raise RoteiroInvalido(f"Roteiro {nome}: roteiro de consulta precisa de ao menos um passo \"extrair\".")
+        return roteiro
     if finais != 1:
         raise RoteiroInvalido(f"Roteiro {nome}: marque exatamente um passo com \"envio_final\": true "
                               f"(o clique que efetivamente protocola). Encontrados: {finais}.")

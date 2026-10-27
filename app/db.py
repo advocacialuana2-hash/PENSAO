@@ -16,6 +16,7 @@ STATUS = {
     "ensaio_ok": "Ensaio concluído",
     "conferir": "Conferir no tribunal",
     "erro": "Erro",
+    "falta_roteiro": "Falta gravar o roteiro",
     "rejeitado": "Rejeitado",
 }
 
@@ -40,7 +41,11 @@ CREATE TABLE IF NOT EXISTS envios (
     protocolo TEXT,
     comprovante TEXT,
     alertas TEXT NOT NULL DEFAULT '[]',
-    aprovado_em TEXT
+    aprovado_em TEXT,
+    id_externo TEXT,
+    destino TEXT NOT NULL DEFAULT 'judicial',
+    identificador TEXT,
+    aprovado_por TEXT
 );
 CREATE TABLE IF NOT EXISTS eventos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +57,16 @@ CREATE TABLE IF NOT EXISTS tribunal_roteiro (
     tribunal TEXT PRIMARY KEY,
     roteiro TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS consultas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    criado_em TEXT NOT NULL,
+    atualizado_em TEXT NOT NULL,
+    id_externo TEXT,
+    roteiro TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'na_fila',
+    mensagem TEXT,
+    resultado TEXT
+);
 CREATE TABLE IF NOT EXISTS vistos (
     caminho TEXT PRIMARY KEY,
     assinatura TEXT NOT NULL
@@ -59,7 +74,11 @@ CREATE TABLE IF NOT EXISTS vistos (
 """
 
 CAMPOS_EDITAVEIS = {"cnj", "tribunal", "roteiro", "tipo", "observacao", "status", "mensagem",
-                    "protocolo", "comprovante", "alertas", "aprovado_em"}
+                    "protocolo", "comprovante", "alertas", "aprovado_em", "id_externo", "destino",
+                    "identificador", "aprovado_por"}
+# Colunas acrescentadas depois da primeira versão: bancos já criados recebem as colunas na abertura.
+COLUNAS_NOVAS = {"id_externo": "TEXT", "destino": "TEXT NOT NULL DEFAULT 'judicial'",
+                 "identificador": "TEXT", "aprovado_por": "TEXT"}
 
 
 def agora() -> str:
@@ -73,6 +92,11 @@ class Banco:
         self._trava = threading.Lock()
         with self._trava:
             self._con.executescript(ESQUEMA)
+            existentes = {r[1] for r in self._con.execute("PRAGMA table_info(envios)")}
+            for coluna, tipo in COLUNAS_NOVAS.items():
+                if coluna not in existentes:
+                    self._con.execute(f"ALTER TABLE envios ADD COLUMN {coluna} {tipo}")
+            self._con.commit()
 
     def _exec(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         with self._trava:
@@ -129,6 +153,11 @@ class Banco:
         rows = self._exec("SELECT status, COUNT(*) AS n FROM envios GROUP BY status").fetchall()
         return {r["status"]: r["n"] for r in rows}
 
+    def por_id_externo(self, id_externo: str) -> dict | None:
+        row = self._exec("SELECT * FROM envios WHERE id_externo = ? ORDER BY id DESC LIMIT 1",
+                         (id_externo,)).fetchone()
+        return self._linha(row)
+
     def com_hash(self, hash_: str, exceto: int | None = None) -> list[dict]:
         rows = self._exec("SELECT * FROM envios WHERE hash = ? AND id != ?", (hash_, exceto or -1))
         return [self._linha(r) for r in rows.fetchall()]
@@ -163,3 +192,30 @@ class Banco:
         self._exec("INSERT INTO vistos (caminho, assinatura) VALUES (?, ?) "
                    "ON CONFLICT(caminho) DO UPDATE SET assinatura = excluded.assinatura",
                    (caminho, assinatura))
+
+    # ----------------------------------------------------------- consultas
+    def inserir_consulta(self, roteiro: str, id_externo: str | None) -> int:
+        momento = agora()
+        cur = self._exec("INSERT INTO consultas (criado_em, atualizado_em, id_externo, roteiro) "
+                         "VALUES (?, ?, ?, ?)", (momento, momento, id_externo, roteiro))
+        return cur.lastrowid
+
+    def atualizar_consulta(self, consulta_id: int, status: str, mensagem: str | None = None,
+                           resultado: dict | None = None) -> None:
+        self._exec("UPDATE consultas SET status = ?, mensagem = ?, resultado = COALESCE(?, resultado), "
+                   "atualizado_em = ? WHERE id = ?",
+                   (status, mensagem, json.dumps(resultado, ensure_ascii=False) if resultado is not None
+                    else None, agora(), consulta_id))
+
+    def consulta(self, consulta_id: int) -> dict | None:
+        row = self._exec("SELECT * FROM consultas WHERE id = ?", (consulta_id,)).fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        d["resultado"] = json.loads(d["resultado"]) if d["resultado"] else None
+        return d
+
+    def consulta_por_id_externo(self, id_externo: str) -> dict | None:
+        row = self._exec("SELECT id FROM consultas WHERE id_externo = ? ORDER BY id DESC LIMIT 1",
+                         (id_externo,)).fetchone()
+        return self.consulta(row["id"]) if row else None

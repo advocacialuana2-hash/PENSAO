@@ -17,7 +17,7 @@
     <td><a href="/envio/{{ e.id }}">{{ e.id }}</a></td>
     <td><a href="/envio/{{ e.id }}">{{ e.nome_original }}</a>
       {% if e.alertas %}<br><span class="suave">⚠ {{ e.alertas|length }} alerta(s)</span>{% endif %}</td>
-    <td>{{ e.cnj or '—' }}</td>
+    <td>{% if e.destino == 'inss' %}INSS · {{ e.identificador or '—' }}{% else %}{{ e.cnj or '—' }}{% endif %}</td>
     <td>{{ e.tribunal or '—' }}</td>
     <td>{{ e.tipo or '—' }}</td>
     <td><span class="selo s-{{ e.status }}">{{ STATUS[e.status] }}</span>

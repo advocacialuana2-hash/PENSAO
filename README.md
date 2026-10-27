@@ -2,7 +2,31 @@
 
 Sistema que pega a peça pronta em PDF, identifica o processo e o tribunal, mostra para aprovação e, com o seu clique, faz o protocolo no sistema judicial. Ao final, guarda o comprovante.
 
-**Nada é protocolado sem aprovação.** Cada envio passa pelo painel, onde você confere a peça, o número do processo e o tipo de petição.
+**Nada é protocolado sem aprovação.** A aprovação é feita no painel **L.A. Office** (aba *Prontos p/ protocolo*, botão 🤖, ou aba *INSS*) ou no painel local deste sistema. O andamento e o comprovante aparecem na aba **Protocoladas** do L.A. Office.
+
+## Ligação com o painel L.A. Office
+
+```
+L.A. Office (nuvem)                      Mac da Dra. Luana
+─────────────────────                    ──────────────────────────────────────
+Prontos p/ protocolo ─ 🤖 Aprovar ──┐
+Aba INSS ─ Aprovar / Consultar ─────┤
+                                    ▼
+                        protocolos_auto · inss_pedidos
+                                    │   ponte (Claude no Mac, a cada 10 min
+                                    │   ou quando ela pedir) ─ ponte/SKILL.md
+                                    ▼
+                             API local (127.0.0.1:8765/api, com token)
+                                    ▼
+                         robô no Chrome + token A3 ─► tribunal / Meu INSS
+                                    │
+Protocoladas ◄─ número, comprovante, pendências ◄───┘
+INSS ◄─ exigências e andamentos lidos no Meu INSS
+```
+
+- A **ponte** é o Claude rodando no Mac (Claude Desktop ou Claude Code). As instruções dela estão em `ponte/SKILL.md`. Ela só leva ao robô o que estiver *aprovado* e só marca *protocolado* quando o robô devolve o número.
+- A **API local** só aceita conexões do próprio Mac e exige o token gravado em `dados/api_token.txt`, criado na primeira execução.
+- Se `meta/ponte.trigger_id` estiver preenchido no painel com o id de uma tarefa agendada que acorda a ponte, a aprovação aciona a ponte na hora. Sem isso, ela age na próxima verificação.
 
 ---
 
@@ -37,6 +61,16 @@ O certificado **A3** fica no token ou no cartão e não pode ser copiado. A assi
 Dependendo do sistema e da configuração do assinador, o PIN do token pode ser pedido a cada assinatura ou uma vez por sessão. Quando o sistema pede uma ação sua (PIN, captcha, confirmação), o painel mostra um aviso amarelo e o robô espera.
 
 ---
+
+## Instalação no Mac
+
+1. Instale o **Python 3.11 ou superior** em <https://www.python.org/downloads/macos/>.
+2. Confirme que o **Google Chrome**, o **PJeOffice** e o **Web PKI** (ou os assinadores que você já usa) funcionam com o token.
+3. Copie esta pasta para a sua pasta pessoal (`~/protocolo-automatico`).
+4. Dê dois cliques em **`instalar.command`**. Na primeira vez, o macOS pode bloquear: clique com o botão direito, escolha **Abrir** e confirme.
+5. Ajuste `config.yaml` (pastas de entrada).
+6. Dê dois cliques em **`iniciar.command`**. O painel local abre em http://localhost:8765. Deixe essa janela aberta enquanto quiser que o robô trabalhe.
+7. Para gravar um roteiro novo, use **`gravar.command`**.
 
 ## Instalação (Windows)
 
@@ -148,9 +182,33 @@ Opções de qualquer passo:
 - `opcional: true`: falha nesse passo não interrompe o roteiro.
 - `descricao`: texto que aparece no histórico.
 
-Variáveis disponíveis: `{cnj}` (formatado), `{cnj_digitos}` (20 dígitos), `{cnj_sequencial}`, `{cnj_ano}`, `{cnj_origem}`, `{arquivo}`, `{tipo}`, `{observacao}`, `{url_inicial}`, além das definidas em `"variaveis"` no próprio roteiro.
+Variáveis disponíveis: `{identificador}` (requerimento do INSS), `{cnj}` (formatado), `{cnj_digitos}` (20 dígitos), `{cnj_sequencial}`, `{cnj_ano}`, `{cnj_origem}`, `{arquivo}`, `{tipo}`, `{observacao}`, `{url_inicial}`, além das definidas em `"variaveis"` no próprio roteiro.
 
 ---
+
+## INSS
+
+- **Consulta:** o roteiro `inss-consulta` (tipo `"consulta"`) entra no Meu INSS e lê a lista de pedidos com exigência usando o passo `extrair` com `"modo": "tabela"`. A ponte grava cada linha em *Exigências e notificações* na aba INSS do painel e cria a tarefa de prazo quando houver data.
+- **Protocolo:** o roteiro `inss-exigencia` anexa o PDF ao requerimento (`{identificador}`) e envia. A aprovação vem da aba INSS do painel.
+- O login é o **gov.br da Dra. Luana**, no perfil do navegador do robô. Quando o gov.br pedir confirmação no celular ou captcha, o robô espera (passo `aguardar_usuario`) e o painel mostra o aviso.
+- Os dois roteiros são gravados a partir do uso real (`gravar.command`). As telas do INSS não foram escritas de memória.
+
+Roteiro de consulta (estrutura):
+
+```json
+{
+  "nome": "Meu INSS — pedidos com exigência",
+  "tipo": "consulta",
+  "url_inicial": "endereço de entrada que você usa",
+  "passos": [
+    {"acao": "abrir", "url": "{url_inicial}"},
+    {"acao": "aguardar_usuario", "mensagem": "Entre com o gov.br", "ate_aparecer": "seletor da lista", "minutos": 5},
+    {"acao": "extrair", "seletor": "seletor da tabela", "campo": "exigencias", "modo": "tabela"}
+  ]
+}
+```
+
+`extrair` aceita `"modo"`: `texto` (um trecho), `lista` (vários elementos) ou `tabela` (linhas e colunas). Roteiro de consulta nunca tem `envio_final`.
 
 ## Limites desta versão
 

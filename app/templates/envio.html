@@ -21,6 +21,8 @@
       {% if envio.mensagem and envio.status != 'aguardando_voce' %}<br>{{ envio.mensagem }}{% endif %}</p>
     <p class="suave">{{ envio.paginas }} página(s) · {{ '%.1f'|format(envio.tamanho / 1048576) }} MB ·
       origem: {{ envio.origem }} · SHA-256 {{ envio.hash[:12] }}…</p>
+    {% if envio.id_externo %}<p class="suave">Aprovado no painel L.A. Office{% if envio.aprovado_por %} por {{ envio.aprovado_por }}{% endif %} · referência {{ envio.id_externo }}</p>{% endif %}
+    {% if envio.destino == 'inss' %}<p><strong>INSS</strong> · requerimento/protocolo {{ envio.identificador or '—' }}</p>{% endif %}
     {% if envio.protocolo %}<p><strong>Protocolo:</strong> {{ envio.protocolo }}</p>{% endif %}
     {% if envio.comprovante %}<p><a href="/envio/{{ envio.id }}/comprovante" target="_blank">Ver comprovante (tela final)</a></p>{% endif %}
     {% for a in envio.alertas %}

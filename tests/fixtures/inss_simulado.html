@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Sistema previdenciário simulado (teste)</title></head>
+<body>
+<div id="login"><button id="entrar" onclick="entrar()">Entrar com gov.br</button></div>
+<div id="area" hidden>
+  <h2>Pedidos com exigência</h2>
+  <table id="exigencias">
+    <tr><th>Requerimento</th><th>Serviço</th><th>Situação</th><th>Exigência</th><th>Prazo</th></tr>
+    <tr><td>123456789</td><td>Aposentadoria por idade urbana</td><td>Exigência</td><td>Apresentar CTPS completa</td><td>10/11/2026</td></tr>
+    <tr><td>987654321</td><td>Benefício por incapacidade</td><td>Exigência</td><td>Enviar laudo médico atualizado</td><td>05/11/2026</td></tr>
+  </table>
+  <h2>Cumprir exigência</h2>
+  <input id="requerimento"><button id="abrir" onclick="abrir()">Abrir requerimento</button>
+  <div id="form-exigencia" hidden>
+    <input type="file" id="documento">
+    <button id="enviar" onclick="enviar()">Enviar documentos</button>
+  </div>
+  <p id="resultado"></p>
+</div>
+<script>
+  function entrar(){ document.getElementById('login').hidden = true; document.getElementById('area').hidden = false; }
+  function abrir(){ if (document.getElementById('requerimento').value.length === 9) document.getElementById('form-exigencia').hidden = false; }
+  function enviar(){
+    const f = document.getElementById('documento').files[0]; if (!f) return;
+    document.getElementById('form-exigencia').hidden = true;
+    document.getElementById('resultado').textContent = 'Documentos enviados. Protocolo de cumprimento 2026.11.0042 registrado.';
+  }
+</script>
+</body>
+</html>

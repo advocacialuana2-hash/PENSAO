@@ -9,14 +9,15 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import cnj, ingestao, roteiros
+from . import cnj, ingestao, roteiros, validacao
+from .api import criar_router
 from .config import Config
 from .db import STATUS, Banco, agora
 from .executor import Executor
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 EM_ANDAMENTO = {"aprovado", "ensaio", "executando", "aguardando_voce"}
-EDITAVEL = {"pendente", "erro", "ensaio_ok"}
+EDITAVEL = validacao.EDITAVEL
 
 
 def criar_app(cfg: Config, banco: Banco, executor: Executor, monitorar: bool = True) -> FastAPI:
@@ -28,6 +29,7 @@ def criar_app(cfg: Config, banco: Banco, executor: Executor, monitorar: bool = T
         yield
 
     app = FastAPI(title="Protocolo Automático", lifespan=ciclo)
+    app.include_router(criar_router(cfg, banco, executor))
 
     def pagina(request: Request, nome: str, **ctx) -> HTMLResponse:
         ctx.update(request=request, STATUS=STATUS, contagem=banco.contagem_por_status())
@@ -82,21 +84,8 @@ def criar_app(cfg: Config, banco: Banco, executor: Executor, monitorar: bool = T
         return voltar(envio_id)
 
     def validar_para_execucao(envio: dict, confirmar_duplicado: bool) -> str | None:
-        if envio["status"] not in EDITAVEL:
-            return "Este envio não está disponível para execução."
-        if not envio["cnj"]:
-            return "Informe o número do processo."
-        if not envio["roteiro"]:
-            return "Escolha o roteiro do sistema/tribunal."
-        try:
-            roteiros.carregar(cfg.pasta_roteiros, envio["roteiro"])
-        except roteiros.RoteiroInvalido as exc:
-            return str(exc)
-        if any(a.startswith("BLOQUEIO") for a in envio["alertas"]):
-            return "A peça tem um bloqueio. Corrija o arquivo e envie de novo."
-        if any(a.startswith("DUPLICADO") for a in envio["alertas"]) and not confirmar_duplicado:
-            return "Arquivo duplicado: marque a confirmação para prosseguir."
-        return None
+        falha = validacao.problema(cfg, banco, envio, confirmar_duplicado)
+        return falha[1] if falha else None
 
     @app.post("/envio/{envio_id}/aprovar")
     def aprovar(envio_id: int, confirmar_duplicado: bool = Form(False)):

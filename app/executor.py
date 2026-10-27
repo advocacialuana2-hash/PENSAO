@@ -27,8 +27,8 @@ class Executor:
     def __init__(self, cfg: Config, banco: Banco):
         self.cfg = cfg
         self.banco = banco
-        self._fila: queue.Queue[tuple[int, bool]] = queue.Queue()
-        self._continuar: dict[int, threading.Event] = {}
+        self._fila: queue.Queue[tuple[str, int, bool]] = queue.Queue()
+        self._continuar: dict[str, threading.Event] = {}
         self._playwright = None
         self._contexto = None
         self._thread = threading.Thread(target=self._loop, name="executor", daemon=True)
@@ -37,17 +37,26 @@ class Executor:
         self._thread.start()
 
     def enfileirar(self, envio_id: int, ensaio: bool) -> None:
-        self._fila.put((envio_id, ensaio))
+        self._fila.put(("envio", envio_id, ensaio))
+
+    def enfileirar_consulta(self, consulta_id: int) -> None:
+        self._fila.put(("consulta", consulta_id, False))
 
     def continuar(self, envio_id: int) -> None:
-        evento = self._continuar.get(envio_id)
+        self._liberar(f"e{envio_id}")
+
+    def continuar_consulta(self, consulta_id: int) -> None:
+        self._liberar(f"c{consulta_id}")
+
+    def _liberar(self, chave: str) -> None:
+        evento = self._continuar.get(chave)
         if evento:
             evento.set()
 
     def processar_pendentes(self) -> None:
         """Processa a fila no próprio thread (uso em testes e linha de comando)."""
         while not self._fila.empty():
-            self._processar(*self._fila.get())
+            self._despachar(*self._fila.get())
 
     def encerrar(self) -> None:
         if self._contexto:
@@ -60,7 +69,13 @@ class Executor:
 
     def _loop(self) -> None:
         while True:
-            self._processar(*self._fila.get())
+            self._despachar(*self._fila.get())
+
+    def _despachar(self, tipo: str, ident: int, ensaio: bool) -> None:
+        if tipo == "consulta":
+            self._consultar(ident)
+        else:
+            self._processar(ident, ensaio)
 
     def _navegador(self):
         if self._contexto is not None:
@@ -95,6 +110,13 @@ class Executor:
         self.banco.mudar_status(envio_id, "executando", "Ensaio (sem envio final)" if ensaio else None)
         envio_final_executado = False
         pagina = None
+        alvo = {
+            "chave": f"e{envio_id}",
+            "registrar": lambda m: self.banco.registrar(envio_id, m),
+            "esperando": lambda m: self.banco.mudar_status(envio_id, "aguardando_voce", m),
+            "retomado": lambda: self.banco.mudar_status(envio_id, "executando", "Retomado"),
+            "extraidos": {},
+        }
         try:
             arquivo = Path(envio["arquivo"])
             if hash_arquivo(arquivo) != envio["hash"]:
@@ -114,7 +136,7 @@ class Executor:
                 if condicao and not self._visivel(pagina, roteiros.substituir(condicao, variaveis)):
                     continue
                 try:
-                    resultado = self._passo(pagina, passo, variaveis, envio_id)
+                    resultado = self._passo(pagina, passo, variaveis, alvo)
                 except Interrompido:
                     raise
                 except Exception:
@@ -152,12 +174,60 @@ class Executor:
                 self.banco.mudar_status(envio_id, "erro", f"Nada foi enviado. {detalhe}",
                                         comprovante=comprovante)
         finally:
-            self._continuar.pop(envio_id, None)
-            if pagina:
+            self._continuar.pop(alvo["chave"], None)
+            self._fechar(pagina)
+
+    def _consultar(self, consulta_id: int) -> None:
+        """Roteiro de consulta (ex.: exigências e andamentos no Meu INSS): só lê, nunca envia."""
+        consulta = self.banco.consulta(consulta_id)
+        if not consulta or consulta["status"] != "na_fila":
+            return
+        self.banco.atualizar_consulta(consulta_id, "executando")
+        historico: list[str] = []
+        pagina = None
+        alvo = {
+            "chave": f"c{consulta_id}",
+            "registrar": historico.append,
+            "esperando": lambda m: self.banco.atualizar_consulta(consulta_id, "aguardando_voce", m),
+            "retomado": lambda: self.banco.atualizar_consulta(consulta_id, "executando", "Retomado"),
+            "extraidos": {},
+        }
+        try:
+            roteiro = roteiros.carregar(self.cfg.pasta_roteiros, consulta["roteiro"])
+            if roteiro.get("tipo") != "consulta":
+                raise RuntimeError("Este roteiro é de protocolo, não de consulta.")
+            variaveis = {k: str(v) for k, v in (roteiro.get("variaveis") or {}).items()}
+            variaveis["url_inicial"] = roteiro.get("url_inicial", "")
+            pagina = self._navegador().new_page()
+            pagina.set_default_timeout(int(roteiro.get("tempo_limite", self.cfg.tempo_limite_passo)) * 1000)
+            for n, passo in enumerate(roteiro["passos"], 1):
+                condicao = passo.get("se_visivel")
+                if condicao and not self._visivel(pagina, roteiros.substituir(condicao, variaveis)):
+                    continue
                 try:
-                    pagina.close()
+                    self._passo(pagina, passo, variaveis, alvo)
+                except Interrompido:
+                    raise
                 except Exception:
-                    pass
+                    if passo.get("opcional"):
+                        historico.append(f"Passo {n} opcional não executado.")
+                        continue
+                    raise
+            self.banco.atualizar_consulta(consulta_id, "concluida", " ".join(historico) or None, alvo["extraidos"])
+        except Exception as exc:
+            self.banco.atualizar_consulta(consulta_id, "erro", f"{type(exc).__name__}: {exc}",
+                                          alvo["extraidos"] or None)
+        finally:
+            self._continuar.pop(alvo["chave"], None)
+            self._fechar(pagina)
+
+    @staticmethod
+    def _fechar(pagina) -> None:
+        if pagina:
+            try:
+                pagina.close()
+            except Exception:
+                pass
 
     @staticmethod
     def _variaveis(envio: dict, roteiro: dict, arquivo: Path) -> dict[str, str]:
@@ -172,6 +242,8 @@ class Executor:
             "cnj_origem": digitos[-4:],
             "arquivo": str(arquivo.resolve()),
             "tipo": envio["tipo"] or "",
+            "identificador": envio.get("identificador") or "",
+            "destino": envio.get("destino") or "judicial",
             "observacao": envio["observacao"] or "",
             "url_inicial": roteiro.get("url_inicial", ""),
         })
@@ -184,7 +256,7 @@ class Executor:
         except Exception:
             return False
 
-    def _passo(self, pagina, passo: dict, variaveis: dict, envio_id: int):
+    def _passo(self, pagina, passo: dict, variaveis: dict, alvo: dict):
         s = {k: roteiros.substituir(v, variaveis) for k, v in passo.items()}
         acao = s["acao"]
         if acao == "abrir":
@@ -219,15 +291,27 @@ class Executor:
             if not m:
                 raise RuntimeError("Número do protocolo não encontrado na tela de confirmação.")
             protocolo = (m.group(1) if m.groups() else m.group(0)).strip()
-            self.banco.registrar(envio_id, f"Protocolo capturado: {protocolo}")
+            alvo["registrar"](f"Protocolo capturado: {protocolo}")
             return protocolo
+        elif acao == "extrair":
+            local = pagina.locator(s["seletor"])
+            modo = s.get("modo", "texto")
+            if modo == "texto":
+                valor = local.first.inner_text().strip()
+            elif modo == "lista":
+                valor = [x.inner_text().strip() for x in local.all()]
+            else:
+                valor = [[c.inner_text().strip() for c in linha.locator("th, td").all()]
+                         for linha in local.locator("tr").all()]
+            alvo["extraidos"][s["campo"]] = valor
+            return valor
         elif acao == "aguardar_usuario":
-            self._aguardar_usuario(pagina, s, envio_id)
+            self._aguardar_usuario(pagina, s, alvo)
 
-    def _aguardar_usuario(self, pagina, passo: dict, envio_id: int) -> None:
+    def _aguardar_usuario(self, pagina, passo: dict, alvo: dict) -> None:
         evento = threading.Event()
-        self._continuar[envio_id] = evento
-        self.banco.mudar_status(envio_id, "aguardando_voce", passo["mensagem"])
+        self._continuar[alvo["chave"]] = evento
+        alvo["esperando"](passo["mensagem"])
         limite = time.monotonic() + float(passo.get("minutos", 15)) * 60
         alvo = passo.get("ate_aparecer")
         while time.monotonic() < limite:
@@ -237,12 +321,13 @@ class Executor:
                 break
         else:
             raise Interrompido("Tempo de espera pela sua ação esgotado.")
-        self._continuar.pop(envio_id, None)
-        self.banco.mudar_status(envio_id, "executando", "Retomado")
+        self._continuar.pop(alvo["chave"], None)
+        alvo["retomado"]()
 
     def _comprovante(self, pagina, envio: dict) -> str | None:
         try:
-            pasta = self.cfg.pasta_comprovantes / re.sub(r"[^\d.-]", "_", envio["cnj"] or "sem-numero")
+            pasta = self.cfg.pasta_comprovantes / re.sub(r"[^\w.-]", "_", envio["cnj"] or envio.get("identificador")
+                                                         or "sem-numero")
             pasta.mkdir(parents=True, exist_ok=True)
             base = pasta / f"{datetime.now():%Y%m%d-%H%M%S}-envio{envio['id']}"
             pagina.screenshot(path=f"{base}.png", full_page=True)
