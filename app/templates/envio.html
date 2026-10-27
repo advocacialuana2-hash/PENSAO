@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<p><a href="/">← Fila</a></p>
+{% if erro %}<div class="alerta erro-msg cartao">{{ erro }}</div>{% endif %}
+
+{% if envio.status == 'aguardando_voce' %}
+<div class="cartao aviso-voce">
+  <strong>Sua ação é necessária no navegador do robô:</strong>
+  <p>{{ envio.mensagem }}</p>
+  <form method="post" action="/envio/{{ envio.id }}/continuar">
+    <button class="primario">Já fiz, continuar</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="grade">
+<div>
+  <div class="cartao">
+    <h2 style="margin-top:0">#{{ envio.id }} · {{ envio.nome_original }}</h2>
+    <p><span class="selo s-{{ envio.status }}">{{ STATUS[envio.status] }}</span>
+      {% if envio.mensagem and envio.status != 'aguardando_voce' %}<br>{{ envio.mensagem }}{% endif %}</p>
+    <p class="suave">{{ envio.paginas }} página(s) · {{ '%.1f'|format(envio.tamanho / 1048576) }} MB ·
+      origem: {{ envio.origem }} · SHA-256 {{ envio.hash[:12] }}…</p>
+    {% if envio.protocolo %}<p><strong>Protocolo:</strong> {{ envio.protocolo }}</p>{% endif %}
+    {% if envio.comprovante %}<p><a href="/envio/{{ envio.id }}/comprovante" target="_blank">Ver comprovante (tela final)</a></p>{% endif %}
+    {% for a in envio.alertas %}
+      <div class="alerta {{ 'bloqueio' if a.startswith('BLOQUEIO') }}">{{ a }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="cartao">
+    <form method="post" action="/envio/{{ envio.id }}/dados">
+      <label>Número do processo (CNJ)</label>
+      <input type="text" name="numero" value="{{ envio.cnj or '' }}" placeholder="0000000-00.0000.0.00.0000" {{ 'disabled' if not editavel }}>
+      <p class="suave">Tribunal identificado: <strong>{{ envio.tribunal or '—' }}</strong></p>
+      <label>Roteiro (sistema e tribunal)</label>
+      <select name="roteiro" {{ 'disabled' if not editavel }}>
+        <option value="">— escolha —</option>
+        {% for nome, r in roteiros.items() %}
+          <option value="{{ nome }}" {{ 'selected' if envio.roteiro == nome }} {{ 'disabled' if r.erro }}>
+            {{ r.nome }}{{ ' (com erro)' if r.erro }}</option>
+        {% endfor %}
+      </select>
+      {% if not roteiros %}<p class="suave">Nenhum roteiro gravado ainda. Veja <a href="/roteiros">Roteiros</a>.</p>{% endif %}
+      <label><input type="checkbox" name="lembrar" value="true" checked> Usar este roteiro sempre para {{ envio.tribunal or 'este tribunal' }}</label>
+      <label>Tipo de petição (como aparece no sistema)</label>
+      <input type="text" name="tipo" value="{{ envio.tipo or '' }}" {{ 'disabled' if not editavel }}>
+      <label>Observação interna</label>
+      <textarea name="observacao" rows="2" {{ 'disabled' if not editavel }}>{{ envio.observacao or '' }}</textarea>
+      {% if editavel %}<div class="acoes"><button>Salvar revisão</button></div>{% endif %}
+    </form>
+  </div>
+
+  {% if editavel %}
+  <div class="cartao">
+    <form method="post" action="/envio/{{ envio.id }}/aprovar">
+      {% if duplicado %}
+      <label><input type="checkbox" name="confirmar_duplicado" value="true"> Confirmo que este arquivo deve ser protocolado novamente</label>
+      {% endif %}
+      <div class="acoes">
+        <button class="primario" onclick="return confirm('Protocolar {{ envio.nome_original }} no processo {{ envio.cnj }}?')">Aprovar e protocolar</button>
+        <button formaction="/envio/{{ envio.id }}/ensaiar">Ensaiar (sem enviar)</button>
+      </div>
+    </form>
+    <form method="post" action="/envio/{{ envio.id }}/rejeitar" class="acoes">
+      <input type="text" name="motivo" placeholder="Motivo da rejeição (opcional)" style="flex:1">
+      <button class="perigo">Rejeitar</button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if envio.status == 'conferir' %}
+  <div class="cartao aviso-voce">
+    <strong>Confira no sistema do tribunal se a peça entrou.</strong>
+    <form method="post" action="/envio/{{ envio.id }}/confirmar">
+      <label>Número do protocolo (deixe vazio se NÃO entrou)</label>
+      <input type="text" name="protocolo">
+      <div class="acoes"><button class="primario">Registrar conferência</button></div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="cartao">
+    <strong>Histórico</strong>
+    <div class="eventos">{% for ev in eventos %}<div><span class="suave">{{ ev.momento.replace('T', ' ') }}</span> {{ ev.descricao }}</div>{% endfor %}</div>
+  </div>
+</div>
+<div>
+  <iframe src="/envio/{{ envio.id }}/arquivo" title="Peça"></iframe>
+</div>
+</div>
+{% endblock %}

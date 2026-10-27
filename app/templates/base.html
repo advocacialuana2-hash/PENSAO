@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% if atualizar %}<meta http-equiv="refresh" content="4">{% endif %}
+<title>Protocolo Automático</title>
+<style>
+  :root { --fundo:#f6f5f2; --cartao:#fff; --texto:#1f2328; --suave:#5d6670; --borda:#dedad3;
+          --marca:#17324d; --ok:#1d7a46; --alerta:#a86200; --erro:#b42318; --info:#1f5fa8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--fundo); color:var(--texto); }
+  header { background:var(--marca); color:#fff; padding:12px 24px; display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+  header strong { font-size:17px; margin-right:auto; }
+  header a { color:#fff; text-decoration:none; opacity:.85; }
+  header a:hover { opacity:1; }
+  main { max-width:1200px; margin:0 auto; padding:24px 16px; }
+  .cartao { background:var(--cartao); border:1px solid var(--borda); border-radius:10px; padding:18px; margin-bottom:16px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--borda); vertical-align:top; }
+  th { font-size:13px; color:var(--suave); font-weight:600; }
+  tr:hover td { background:#faf9f6; }
+  a { color:var(--info); }
+  .selo { display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; font-weight:600; background:#eceae5; white-space:nowrap; }
+  .s-pendente,.s-aguardando_voce,.s-conferir { background:#fff1d6; color:var(--alerta); }
+  .s-protocolado,.s-ensaio_ok { background:#dcf3e5; color:var(--ok); }
+  .s-erro { background:#fde4e1; color:var(--erro); }
+  .s-executando,.s-aprovado,.s-ensaio { background:#dfeafa; color:var(--info); }
+  .filtros a { margin-right:12px; font-size:14px; }
+  .filtros a.ativo { font-weight:700; color:var(--texto); text-decoration:none; }
+  .grade { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+  @media (max-width: 900px) { .grade { grid-template-columns:1fr; } }
+  label { display:block; font-size:13px; font-weight:600; color:var(--suave); margin:10px 0 4px; }
+  input[type=text], select, textarea { width:100%; padding:8px 10px; border:1px solid var(--borda); border-radius:6px; font:inherit; }
+  button { font:inherit; font-weight:600; padding:9px 16px; border-radius:6px; border:1px solid var(--borda); background:#fff; cursor:pointer; }
+  button.primario { background:var(--ok); color:#fff; border-color:var(--ok); }
+  button.perigo { color:var(--erro); }
+  .acoes { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+  .alerta { padding:10px 12px; border-radius:6px; margin:6px 0; background:#fff1d6; color:#6b3f00; }
+  .alerta.bloqueio, .erro-msg { background:#fde4e1; color:var(--erro); }
+  .aviso-voce { background:#fff1d6; border:2px solid var(--alerta); }
+  iframe { width:100%; height:78vh; border:1px solid var(--borda); border-radius:8px; background:#fff; }
+  .suave { color:var(--suave); font-size:13px; }
+  .eventos { font-size:13px; max-height:300px; overflow:auto; white-space:pre-wrap; }
+  code { background:#eceae5; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Protocolo Automático</strong>
+  <a href="/">Fila{% if contagem.get('pendente') %} ({{ contagem.get('pendente') }} para aprovar){% endif %}</a>
+  <a href="/enviar">Enviar peça</a>
+  <a href="/roteiros">Roteiros e pastas</a>
+</header>
+<main>
+{% block conteudo %}{% endblock %}
+</main>
+</body>
+</html>

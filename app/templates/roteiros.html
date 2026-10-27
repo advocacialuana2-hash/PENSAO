@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="cartao">
+  <h2 style="margin-top:0">Roteiros gravados</h2>
+  <p class="suave">Pasta: <code>{{ pasta }}</code></p>
+  {% if roteiros %}
+  <table>
+    <tr><th>Arquivo</th><th>Nome</th><th>Passos</th><th>Situação</th></tr>
+    {% for chave, r in roteiros.items() %}
+    <tr><td><code>{{ chave }}.json</code></td><td>{{ r.nome }}</td>
+      <td>{{ r.passos|length if r.passos else '—' }}</td>
+      <td>{% if r.erro %}<span class="selo s-erro">Erro</span> {{ r.erro }}{% else %}<span class="selo s-protocolado">Válido</span>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>Nenhum roteiro ainda. Grave o primeiro com <code>gravar.bat</code> (veja o LEIA-ME).</p>
+  {% endif %}
+</div>
+<div class="cartao">
+  <h2 style="margin-top:0">Tribunal → roteiro</h2>
+  {% if mapa %}
+  <table>{% for t, r in mapa.items() %}<tr><td>{{ t }}</td><td><code>{{ r }}</code></td></tr>{% endfor %}</table>
+  {% else %}<p class="suave">O vínculo é criado quando você escolhe um roteiro em um envio com "usar sempre" marcado.</p>{% endif %}
+</div>
+<div class="cartao">
+  <h2 style="margin-top:0">Pastas monitoradas</h2>
+  {% for p in pastas_entrada %}<div><code>{{ p }}</code>{% if not p.exists() %} <span class="selo s-erro">não encontrada</span>{% endif %}</div>
+  {% else %}<p class="suave">Nenhuma pasta configurada em <code>config.yaml</code>.</p>{% endfor %}
+</div>
+{% endblock %}

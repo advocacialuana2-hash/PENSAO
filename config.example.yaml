@@ -1,0 +1,27 @@
+# Copie este arquivo para config.yaml e ajuste as pastas.
+
+# Pastas onde você salva as peças prontas (PDF). Subpastas também são lidas.
+# Para peças na nuvem, use a pasta sincronizada no computador
+# (Google Drive para computador, OneDrive, Dropbox).
+pastas_entrada:
+  - "~/Documents/Protocolar"
+
+# Peças acima deste tamanho são bloqueadas. Confira o limite de cada sistema
+# judicial que você usa e ajuste.
+limite_mb: 10
+
+# Segundos entre cada verificação das pastas.
+intervalo_varredura: 10
+
+# Endereço do painel: http://localhost:8765
+porta: 8765
+
+# Tempo máximo (segundos) para cada passo do roteiro.
+tempo_limite_passo: 30
+
+navegador:
+  # "chrome" usa o Google Chrome instalado (recomendado para as extensões de
+  # assinatura). Use "msedge" para o Microsoft Edge.
+  canal: chrome
+  # Mantenha false: você precisa ver o navegador para digitar o PIN do token.
+  headless: false

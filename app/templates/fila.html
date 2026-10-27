@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="filtros cartao">
+  <a href="/" class="{{ 'ativo' if not filtro }}">Todos</a>
+  {% for chave, rotulo in STATUS.items() %}
+    {% if contagem.get(chave) %}
+    <a href="/?status={{ chave }}" class="{{ 'ativo' if filtro == chave }}">{{ rotulo }} ({{ contagem[chave] }})</a>
+    {% endif %}
+  {% endfor %}
+</div>
+<div class="cartao">
+{% if envios %}
+<table>
+  <tr><th>#</th><th>Peça</th><th>Processo</th><th>Tribunal</th><th>Tipo</th><th>Status</th><th>Recebida</th></tr>
+  {% for e in envios %}
+  <tr>
+    <td><a href="/envio/{{ e.id }}">{{ e.id }}</a></td>
+    <td><a href="/envio/{{ e.id }}">{{ e.nome_original }}</a>
+      {% if e.alertas %}<br><span class="suave">⚠ {{ e.alertas|length }} alerta(s)</span>{% endif %}</td>
+    <td>{{ e.cnj or '—' }}</td>
+    <td>{{ e.tribunal or '—' }}</td>
+    <td>{{ e.tipo or '—' }}</td>
+    <td><span class="selo s-{{ e.status }}">{{ STATUS[e.status] }}</span>
+      {% if e.protocolo %}<br><span class="suave">{{ e.protocolo }}</span>{% endif %}</td>
+    <td class="suave">{{ e.criado_em.replace('T', ' ') }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>Nenhuma peça na fila. Salve PDFs em uma das pastas monitoradas ou use <a href="/enviar">Enviar peça</a>.</p>
+{% endif %}
+</div>
+{% endblock %}

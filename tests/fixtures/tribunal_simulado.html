@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><title>Sistema simulado de peticionamento (teste)</title></head>
+<body>
+<div id="login"><button id="entrar" onclick="login()">Entrar com certificado</button></div>
+<div id="busca" hidden>
+  <input id="numero"><button id="pesquisar" onclick="pesquisar()">Pesquisar</button>
+  <p id="mensagem"></p>
+</div>
+<div id="form-peticao" hidden>
+  <p>Processo: <span id="proc"></span></p>
+  <select id="tipo">
+    <option value="">Selecione</option>
+    <option value="m">Manifestação</option>
+    <option value="c">Contrarrazões</option>
+  </select>
+  <input type="file" id="arquivo">
+  <button id="assinar" onclick="enviar()">Assinar e enviar</button>
+</div>
+<div id="recibo" hidden></div>
+<script>
+  function login() { document.getElementById('login').hidden = true; document.getElementById('busca').hidden = false; }
+  function pesquisar() {
+    const n = document.getElementById('numero').value;
+    if (!/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(n)) { document.getElementById('mensagem').textContent = 'Processo não encontrado'; return; }
+    document.getElementById('proc').textContent = n;
+    document.getElementById('form-peticao').hidden = false;
+  }
+  function enviar() {
+    const tipo = document.getElementById('tipo').value;
+    const arq = document.getElementById('arquivo').files[0];
+    if (!tipo || !arq) { alert('Preencha tipo e arquivo'); return; }
+    document.getElementById('form-peticao').hidden = true;
+    const r = document.getElementById('recibo');
+    r.hidden = false;
+    r.textContent = 'Petição protocolada com sucesso. Protocolo nº 2024.0001234-5 — arquivo ' + arq.name;
+  }
+</script>
+</body>
+</html>

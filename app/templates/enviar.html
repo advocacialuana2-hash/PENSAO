@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<div class="cartao">
+  <h2 style="margin-top:0">Enviar peça</h2>
+  <p>Selecione um ou mais PDFs. Cada arquivo entra na fila para sua revisão e aprovação; nada é protocolado sem o seu clique.</p>
+  <form method="post" action="/enviar" enctype="multipart/form-data">
+    <input type="file" name="arquivos" accept="application/pdf,.pdf" multiple required>
+    <div class="acoes"><button class="primario">Adicionar à fila</button></div>
+  </form>
+</div>
+{% endblock %}
