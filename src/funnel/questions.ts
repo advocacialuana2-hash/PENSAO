@@ -4,10 +4,8 @@ export type QuestionId =
   | 'atraso'
   | 'gestacao'
   | 'indicios'
-  | 'pagadorMotivo'
   | 'idade'
   | 'renda'
-  | 'localizacao'
   | 'advogado'
   | 'honorarios';
 
@@ -16,6 +14,7 @@ export type Answers = Partial<Record<QuestionId, string>>;
 export interface Option {
   value: string;
   label: string;
+  hint?: string;
 }
 
 export interface Question {
@@ -34,43 +33,42 @@ const notCase = (...cases: string[]) => (a: Answers) => !cases.includes(a.situac
 export const QUESTIONS: Question[] = [
   {
     id: 'situacao',
-    title: 'Qual destas situações descreve o seu caso?',
+    title: 'Qual é a sua situação hoje?',
     summaryLabel: 'Situação',
     options: [
-      { value: 'fixacao', label: 'O pai não paga pensão e não existe acordo nem processo' },
-      { value: 'execucao', label: 'A pensão já foi definida, mas ele atrasa ou não paga' },
-      { value: 'revisao', label: 'Recebo pensão, mas o valor não cobre as despesas' },
-      { value: 'gravidez', label: 'Estou grávida e o pai não ajuda com as despesas' },
-      { value: 'pagador', label: 'Sou eu quem paga a pensão e preciso revisar ou encerrar' },
+      { value: 'gravidez', label: 'Estou grávida e o pai não ajuda' },
+      { value: 'fixacao', label: 'O pai não paga pensão', hint: 'Ainda não tem acordo nem processo' },
+      { value: 'execucao', label: 'Ele atrasa ou não paga o combinado', hint: 'A pensão já foi definida' },
+      { value: 'revisao', label: 'O valor não dá para as despesas' },
     ],
   },
   {
     id: 'titulo',
     title: 'Como a pensão foi definida?',
-    summaryLabel: 'Pensão definida por',
+    summaryLabel: 'Pensão definida',
     showIf: isCase('execucao'),
     options: [
-      { value: 'judicial', label: 'Por decisão do juiz ou acordo homologado na Justiça' },
-      { value: 'extrajudicial', label: 'Por acordo escrito feito em cartório, na Defensoria ou no Ministério Público' },
-      { value: 'informal', label: 'Por acordo verbal ou papel assinado só entre nós' },
-      { value: 'naoSei', label: 'Não sei informar' },
+      { value: 'judicial', label: 'Pelo juiz, em um processo' },
+      { value: 'extrajudicial', label: 'Em cartório, Defensoria ou Promotoria' },
+      { value: 'informal', label: 'Só combinamos entre nós' },
+      { value: 'naoSei', label: 'Não sei' },
     ],
   },
   {
     id: 'atraso',
-    title: 'Há quanto tempo a pensão está atrasada?',
+    title: 'Há quanto tempo ele não paga?',
     summaryLabel: 'Atraso',
     showIf: isCase('execucao'),
     options: [
       { value: 'ate1', label: 'Menos de 1 mês' },
       { value: '1a3', label: 'De 1 a 3 meses' },
       { value: 'mais3', label: 'Mais de 3 meses' },
-      { value: 'parcial', label: 'Ele paga só uma parte do valor' },
+      { value: 'parcial', label: 'Ele paga só uma parte' },
     ],
   },
   {
     id: 'gestacao',
-    title: 'Com quantos meses de gestação você está?',
+    title: 'De quantos meses você está?',
     summaryLabel: 'Gestação',
     showIf: isCase('gravidez'),
     options: [
@@ -81,32 +79,20 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 'indicios',
-    title: 'Você tem como demonstrar o relacionamento com o pai?',
-    subtitle: 'Por exemplo: mensagens, fotos, testemunhas ou comprovantes.',
+    title: 'Você consegue mostrar que vocês se relacionaram?',
+    subtitle: 'Conversas, fotos ou pessoas que sabiam do relacionamento já ajudam.',
     summaryLabel: 'Provas do relacionamento',
     showIf: isCase('gravidez'),
     options: [
-      { value: 'sim', label: 'Sim, tenho' },
-      { value: 'algumas', label: 'Tenho algumas' },
-      { value: 'nao', label: 'Não tenho' },
-    ],
-  },
-  {
-    id: 'pagadorMotivo',
-    title: 'O que mudou na sua situação?',
-    summaryLabel: 'Motivo',
-    showIf: isCase('pagador'),
-    options: [
-      { value: 'renda', label: 'Minha renda diminuiu ou perdi o emprego' },
-      { value: 'maioridade', label: 'O filho completou 18 anos ou mais' },
-      { value: 'familia', label: 'Tive outro filho ou novas despesas obrigatórias' },
-      { value: 'cobranca', label: 'Estou sendo cobrado na Justiça ou com risco de prisão' },
+      { value: 'sim', label: 'Sim' },
+      { value: 'algumas', label: 'Um pouco' },
+      { value: 'nao', label: 'Não' },
     ],
   },
   {
     id: 'idade',
-    title: 'Qual a idade do(a) filho(a)?',
-    subtitle: 'Se forem mais de um, considere o mais novo.',
+    title: 'Quantos anos tem seu filho ou filha?',
+    subtitle: 'Se tiver mais de um, pense no mais novo.',
     summaryLabel: 'Idade do(a) filho(a)',
     showIf: notCase('gravidez'),
     options: [
@@ -117,46 +103,35 @@ export const QUESTIONS: Question[] = [
   },
   {
     id: 'renda',
-    title: 'Qual a situação de trabalho do pai?',
+    title: 'O pai trabalha com quê?',
     summaryLabel: 'Trabalho do pai',
-    showIf: notCase('pagador'),
     options: [
-      { value: 'clt', label: 'Carteira assinada (CLT)' },
-      { value: 'servidor', label: 'Servidor público, militar ou aposentado' },
-      { value: 'autonomo', label: 'Autônomo, empresário ou trabalho informal' },
-      { value: 'desempregado', label: 'Desempregado' },
+      { value: 'clt', label: 'Tem carteira assinada' },
+      { value: 'servidor', label: 'É servidor, militar ou aposentado' },
+      { value: 'autonomo', label: 'Trabalha por conta própria ou faz bicos' },
+      { value: 'desempregado', label: 'Está desempregado' },
       { value: 'naoSei', label: 'Não sei' },
     ],
   },
   {
-    id: 'localizacao',
-    title: 'Você sabe onde ele mora ou trabalha?',
-    summaryLabel: 'Localização do pai',
-    showIf: notCase('pagador'),
-    options: [
-      { value: 'sim', label: 'Sei o endereço ou o local de trabalho' },
-      { value: 'cidade', label: 'Sei apenas a cidade' },
-      { value: 'nao', label: 'Não sei' },
-    ],
-  },
-  {
     id: 'advogado',
-    title: 'Algum advogado(a) ou a Defensoria Pública já cuida deste caso?',
-    summaryLabel: 'Representação atual',
+    title: 'Você já tem advogado(a) cuidando disso?',
+    subtitle: 'Vale também a Defensoria Pública.',
+    summaryLabel: 'Já tem advogado(a)',
     options: [
       { value: 'nao', label: 'Não' },
-      { value: 'trocar', label: 'Sim, mas quero mudar de advogado(a)' },
-      { value: 'sim', label: 'Sim, e quero continuar com quem já me atende' },
+      { value: 'trocar', label: 'Tenho, mas quero trocar' },
+      { value: 'sim', label: 'Tenho e vou continuar com ele(a)' },
     ],
   },
   {
     id: 'honorarios',
-    title: 'O atendimento é particular, com honorários que podem ser parcelados. Isso funciona para você?',
-    summaryLabel: 'Honorários',
+    title: 'Nosso atendimento é particular, com pagamento facilitado. Tudo bem para você?',
+    summaryLabel: 'Atendimento particular',
     options: [
-      { value: 'sim', label: 'Sim, quero seguir' },
-      { value: 'valores', label: 'Quero conhecer os valores antes' },
-      { value: 'nao', label: 'Não tenho condições de pagar advogado(a)' },
+      { value: 'sim', label: 'Sim, tudo bem' },
+      { value: 'valores', label: 'Quero saber os valores antes' },
+      { value: 'nao', label: 'Não tenho como pagar advogado(a)' },
     ],
   },
 ];

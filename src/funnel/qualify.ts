@@ -1,6 +1,6 @@
-import { Answers, QUESTIONS, Question, optionLabel } from './questions';
+import { Answers, QUESTIONS, Question, QuestionId, optionLabel } from './questions';
 
-export type CaseType = 'fixacao' | 'execucao' | 'revisao' | 'gravidez' | 'pagador';
+export type CaseType = 'fixacao' | 'execucao' | 'revisao' | 'gravidez';
 export type Tier = 'quente' | 'morno' | 'frio';
 export type DisqualifyReason = 'representado' | 'gratuidade';
 
@@ -26,7 +26,6 @@ export const CASE_LABELS: Record<CaseType, string> = {
   execucao: 'Execução de alimentos',
   revisao: 'Revisional de alimentos',
   gravidez: 'Alimentos gravídicos',
-  pagador: 'Defesa do alimentante (revisão/exoneração)',
 };
 
 const CASE_CODES: Record<CaseType, string> = {
@@ -34,26 +33,23 @@ const CASE_CODES: Record<CaseType, string> = {
   execucao: 'EX',
   revisao: 'RV',
   gravidez: 'GR',
-  pagador: 'PG',
 };
 
 const TIER_CODES: Record<Tier, string> = { quente: 'A', morno: 'B', frio: 'C' };
 
 const WEIGHTS: Partial<Record<keyof Answers, Record<string, number>>> = {
-  situacao: { execucao: 30, gravidez: 30, fixacao: 25, revisao: 15, pagador: 15 },
+  situacao: { execucao: 30, gravidez: 30, fixacao: 25, revisao: 15 },
   titulo: { judicial: 10, extrajudicial: 10, naoSei: 5 },
   atraso: { mais3: 25, '1a3': 20, parcial: 10, ate1: 5 },
   gestacao: { '7mais': 15, '4a6': 10, ate3: 5 },
   indicios: { sim: 10, algumas: 5 },
-  pagadorMotivo: { cobranca: 40, renda: 15, maioridade: 15, familia: 10 },
   idade: { menor: 10, estudante: 5 },
   renda: { clt: 20, servidor: 20, autonomo: 10, naoSei: 5 },
-  localizacao: { sim: 10, cidade: 5 },
   advogado: { trocar: -5 },
   honorarios: { sim: 15, valores: 5 },
 };
 
-export const TIER_THRESHOLDS = { quente: 80, morno: 50 };
+export const TIER_THRESHOLDS = { quente: 70, morno: 45 };
 
 export const visibleQuestions = (answers: Answers): Question[] =>
   QUESTIONS.filter((q) => !q.showIf || q.showIf(answers));
@@ -79,17 +75,14 @@ export function qualify(answers: Answers): QualifyResult {
   if (answers.situacao === 'execucao' && answers.atraso === 'mais3') {
     flags.push('Atraso superior a 3 meses: avaliar cumulação dos ritos de prisão e de penhora');
   }
-  if (caseType !== 'pagador' && answers.idade === 'maior') {
+  if (answers.idade === 'maior') {
     flags.push('Filho(a) maior que não estuda: necessidade precisa ser demonstrada, análise individual');
+  }
+  if (caseType === 'gravidez' && answers.gestacao === '7mais') {
+    flags.push('URGENTE: gestação avançada, ajuizar antes do parto');
   }
   if (caseType === 'gravidez' && answers.indicios === 'nao') {
     flags.push('Sem indícios de paternidade informados: orientar coleta de provas antes do ajuizamento');
-  }
-  if (caseType === 'pagador' && answers.pagadorMotivo === 'cobranca') {
-    flags.push('URGENTE: alimentante sob cobrança ou risco de prisão, verificar prazo de justificativa');
-  }
-  if (answers.localizacao === 'nao') {
-    flags.push('Endereço do réu desconhecido: prever pesquisa de endereço para citação');
   }
   if (answers.advogado === 'trocar') {
     flags.push('Já possui patrono: comunicar o advogado anterior antes de aceitar a procuração (CED, art. 14)');
@@ -119,9 +112,9 @@ export function buildProtocol(result: QualifyResult, random: () => number = Math
   return `PA-${CASE_CODES[result.caseType]}${TIER_CODES[result.tier]}-${suffix}`;
 }
 
-export const answerSummary = (answers: Answers): { label: string; value: string }[] =>
+export const answerSummary = (answers: Answers, omit: QuestionId[] = []): { label: string; value: string }[] =>
   visibleQuestions(answers)
-    .filter((q) => answers[q.id])
+    .filter((q) => answers[q.id] && !omit.includes(q.id))
     .map((q) => ({ label: q.summaryLabel, value: optionLabel(q.id, answers[q.id]) }));
 
 export const firstName = (nome: string) => nome.trim().split(/\s+/)[0] ?? '';
@@ -132,7 +125,8 @@ export function buildWhatsAppMessage(contact: LeadContact, answers: Answers, pro
     `Olá! Me chamo ${contact.nome.trim()} e fiz a análise do meu caso no site.`,
     `Protocolo: ${protocol}`,
     '',
-    ...answerSummary(answers).map(({ label, value }) => `• ${label}: ${value}`),
+    // Representação e honorários ficam só no webhook: na voz da cliente soariam estranhos.
+    ...answerSummary(answers, ['advogado', 'honorarios']).map(({ label, value }) => `• ${label}: ${value}`),
     `• Cidade: ${contact.cidade.trim()}/${contact.uf}`,
     '',
     'Gostaria de continuar o atendimento.',

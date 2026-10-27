@@ -8,13 +8,13 @@ Funil: anúncio → landing page → quiz de qualificação → WhatsApp com res
 |---|---|---|
 | 1. Clique no anúncio | UTMs e `fbclid` são gravados na sessão | `src/funnel/tracking.ts` |
 | 2. Qualquer CTA da página | Abre o quiz (nenhum botão leva direto ao WhatsApp) | `src/funnel/QuizFunnel.tsx` |
-| 3. Quiz (6 a 8 perguntas) | Perguntas mudam conforme o tipo de caso | `src/funnel/questions.ts` |
+| 3. Quiz (5 ou 6 perguntas) | A primeira pergunta já aparece no topo da página; as seguintes mudam conforme o caso | `src/funnel/questions.ts` |
 | 4. Filtro | Quem já tem advogado e quer continuar, ou não pode pagar honorários, recebe orientação e **não** gera lead | `src/funnel/qualify.ts` |
 | 5. Formulário | Nome, WhatsApp, cidade/UF e consentimento LGPD | `QuizFunnel.tsx` |
 | 6. Envio | Webhook (Make/CRM) recebe tudo, inclusive prioridade e alertas internos; Pixel registra `Lead` | `tracking.ts` |
 | 7. WhatsApp | Em 4 s a cliente cai no WhatsApp do escritório com o resumo do caso já escrito | `qualify.ts` |
 
-A cliente vê apenas o resumo das próprias respostas e o protocolo. Pontuação, prioridade e alertas jurídicos vão só para o webhook.
+A cliente vê apenas o resumo das respostas sobre o caso e o protocolo; as respostas sobre advogado e honorários não entram na mensagem. Pontuação, prioridade e alertas jurídicos vão só para o webhook.
 
 ## 2. Leitura do protocolo
 
@@ -26,13 +26,12 @@ Formato: `PA-<CASO><PRIORIDADE>-<CÓDIGO>` — exemplo `PA-EXA-K7Q2`.
 | EX | Execução | Cumprimento de sentença ou execução de alimentos (CPC, arts. 528 e 911) |
 | RV | Revisão | Revisional (CC, art. 1.699) |
 | GR | Gestante | Alimentos gravídicos (Lei 11.804/2008) |
-| PG | Quem paga | Defesa, revisional ou exoneração (Súmula 358/STJ para filho maior) |
 
 | Prioridade | Pontuação | Prazo recomendado de primeira resposta |
 |---|---|---|
-| A — quente | 80 ou mais | Imediato, no horário comercial |
-| B — morno | 50 a 79 | Mesmo dia |
-| C — frio | abaixo de 50 | Até o dia útil seguinte |
+| A — quente | 70 ou mais | Imediato, no horário comercial |
+| B — morno | 45 a 69 | Mesmo dia |
+| C — frio | abaixo de 45 | Até o dia útil seguinte |
 
 Os pesos e os limites estão em `WEIGHTS` e `TIER_THRESHOLDS` (`src/funnel/qualify.ts`). Revise-os após as primeiras semanas, comparando a prioridade com a taxa real de fechamento.
 
@@ -54,12 +53,13 @@ Regra geral: uma pergunta por mensagem, sem promessa de resultado, sem prazo gar
 3. Quanto você gasta por mês com a criança (escola, saúde, alimentação, moradia)?
 4. Ele ajuda com alguma coisa hoje, mesmo que informalmente?
 5. Você sabe quanto ele ganha ou como ele vive (carro, viagens, redes sociais)?
+6. Você sabe o endereço dele ou do trabalho?
 
 **EX — Execução**
 1. Você tem o número do processo ou uma cópia da decisão ou do acordo?
 2. Qual o valor mensal definido e qual foi o último mês pago integralmente?
 3. Ele paga parte do valor? Quanto, e desde quando?
-4. Onde ele trabalha hoje?
+4. Onde ele trabalha e onde mora hoje?
 
 Ponto técnico para a equipe: a prisão civil abrange as 3 prestações anteriores ao ajuizamento e as que vencerem no curso do processo (CPC, art. 528, § 7º; Súmula 309/STJ). O restante segue pelo rito da penhora. Com vínculo CLT, servidor ou benefício, avaliar desconto em folha (CPC, art. 529).
 
@@ -73,15 +73,9 @@ Ponto técnico para a equipe: a prisão civil abrange as 3 prestações anterior
 2. Ele sabe da gravidez? Como reagiu?
 3. Que provas você tem do relacionamento (conversas, fotos, testemunhas)?
 4. Quais despesas a gestação já gerou (consultas, exames, medicamentos, enxoval)?
+5. Você sabe onde ele mora ou trabalha?
 
-Ponto técnico: o juiz fixa os alimentos gravídicos com base em indícios de paternidade, e eles se convertem em pensão após o nascimento (Lei 11.804/2008, art. 6º). Ajuizar antes do parto evita perda de tempo.
-
-**PG — Quem paga**
-1. Existe processo em curso contra você? Recebeu intimação ou mandado? Em que data?
-2. Qual o valor atual e qual a sua renda hoje?
-3. O que mudou (desemprego, novo filho, maioridade)?
-
-Ponto técnico: intimado no cumprimento pelo rito da prisão, o devedor tem 3 dias para pagar, provar que pagou ou justificar a impossibilidade (CPC, art. 528). Alerta `URGENTE` no webhook = atender primeiro.
+Ponto técnico: o juiz fixa os alimentos gravídicos com base em indícios de paternidade, e eles se convertem em pensão após o nascimento (Lei 11.804/2008, art. 6º). Ajuizar antes do parto evita perda de tempo. Alerta `URGENTE` no webhook (7 meses ou mais) = atender primeiro.
 
 ### 3.3 Diagnóstico e proposta
 
@@ -95,20 +89,18 @@ Se a renda da cliente for baixa, informar que ela pode pedir gratuidade das cust
 
 ### 3.4 Documentos por caso
 
-| Documento | FX | EX | RV | GR | PG |
-|---|---|---|---|---|---|
-| RG/CNH e CPF da cliente | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Comprovante de residência | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Certidão de nascimento do(s) filho(s) | ✓ | ✓ | ✓ | | ✓ |
-| Comprovantes de despesas da criança | ✓ | | ✓ | | |
-| Dados do outro genitor (nome, CPF, endereço, trabalho) | ✓ | ✓ | ✓ | ✓ | |
-| Prints de redes sociais ou bens do outro genitor | ✓ | ✓ | ✓ | ✓ | |
-| Sentença, acordo homologado ou número do processo | | ✓ | ✓ | | ✓ |
-| Relação dos meses e valores não pagos | | ✓ | | | |
-| Exame ou laudo de gravidez e despesas da gestação | | | | ✓ | |
-| Provas do relacionamento | | | | ✓ | |
-| Comprovantes de renda e dos pagamentos já feitos | | | | | ✓ |
-| Intimação ou mandado recebido | | | | | ✓ |
+| Documento | FX | EX | RV | GR |
+|---|---|---|---|---|
+| RG/CNH e CPF da cliente | ✓ | ✓ | ✓ | ✓ |
+| Comprovante de residência | ✓ | ✓ | ✓ | ✓ |
+| Certidão de nascimento do(s) filho(s) | ✓ | ✓ | ✓ | |
+| Comprovantes de despesas da criança | ✓ | | ✓ | |
+| Dados do outro genitor (nome, CPF, endereço, trabalho) | ✓ | ✓ | ✓ | ✓ |
+| Prints de redes sociais ou bens do outro genitor | ✓ | ✓ | ✓ | ✓ |
+| Sentença, acordo homologado ou número do processo | | ✓ | ✓ | |
+| Relação dos meses e valores não pagos | | ✓ | | |
+| Exame ou laudo de gravidez e despesas da gestação | | | | ✓ |
+| Provas do relacionamento | | | | ✓ |
 
 ### 3.5 Fechamento on-line
 
@@ -162,12 +154,12 @@ Eventos do Pixel:
 
 Otimize as campanhas para `Lead`: como desqualificados não disparam esse evento, o algoritmo aprende com o público certo.
 
-Campos enviados ao webhook (formulário `application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, cada resposta individual (`situacao`, `titulo`, `atraso`, `gestacao`, `indicios`, `pagadorMotivo`, `idade`, `renda`, `localizacao`, `advogado`, `honorarios`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
+Campos enviados ao webhook (formulário `application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, cada resposta individual (`situacao`, `titulo`, `atraso`, `gestacao`, `indicios`, `idade`, `renda`, `advogado`, `honorarios`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
 
 Cenário sugerido no Make: Webhook → planilha/CRM → mensagem para o grupo da equipe com prioridade e alertas → (prioridade A) notificação imediata ao responsável.
 
 ## 5. Conformidade
 
-- **Publicidade e captação (OAB):** o Código de Ética veda angariar ou captar clientela (art. 7º) e o Provimento 205/2021 restringe a publicidade a caráter informativo, sem promessa de resultado. O quiz e as mensagens foram escritos sem promessa de resultado ou prazo. Itens da página atual que devem passar por revisão antes de rodar anúncios: depoimentos com resultados ("o valor dobrou", "em menos de 15 dias"), "+10.000 atuações de sucesso", "Decisão judicial em poucos dias", selo "Online agora" e o número de OAB do rodapé.
+- **Publicidade e captação (OAB):** o Código de Ética veda angariar ou captar clientela (art. 7º) e o Provimento 205/2021 restringe a publicidade a caráter informativo, sem promessa de resultado. O quiz e as mensagens foram escritos sem promessa de resultado ou prazo. A página foi reescrita sem depoimentos de resultado, sem números de casos e sem selo "Online agora". Pendente: número de OAB real no rodapé e autorização de uso de imagem da modelo da foto.
 - **LGPD:** o consentimento é coletado no formulário, e leads desqualificados não têm dados pessoais coletados (minimização, art. 6º, III). Falta uma política de privacidade publicada e linkada no formulário (art. 9º).
 - **Sigilo:** respostas sobre o caso circulam no webhook e no WhatsApp; restrinja o acesso ao cenário do Make e à planilha à equipe do atendimento.

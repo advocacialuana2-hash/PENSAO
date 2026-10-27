@@ -12,7 +12,7 @@ import {
 test('execução com atraso longo e pai CLT é lead quente', () => {
   const r = qualify({
     situacao: 'execucao', titulo: 'judicial', atraso: 'mais3', idade: 'menor',
-    renda: 'clt', localizacao: 'sim', advogado: 'nao', honorarios: 'sim',
+    renda: 'clt', advogado: 'nao', honorarios: 'sim',
   });
   assert.equal(r.qualified, true);
   assert.equal(r.caseType, 'execucao');
@@ -35,30 +35,31 @@ test('sem condição de pagar honorários é encaminhado à Defensoria', () => {
   assert.equal(disqualification({ advogado: 'nao', honorarios: 'nao' }), 'gratuidade');
 });
 
-test('gestante pula perguntas de idade e pagador recebe ramo próprio', () => {
+test('gestante pula a pergunta de idade e responde no máximo 6 perguntas', () => {
   const g = visibleQuestions({ situacao: 'gravidez' }).map((q) => q.id);
   assert.ok(g.includes('gestacao') && g.includes('indicios') && !g.includes('idade'));
-  const p = visibleQuestions({ situacao: 'pagador' }).map((q) => q.id);
-  assert.ok(p.includes('pagadorMotivo') && !p.includes('renda') && !p.includes('localizacao'));
+  assert.ok(g.length <= 6);
+  assert.ok(visibleQuestions({ situacao: 'fixacao' }).length <= 5);
 });
 
-test('pagador sob risco de prisão é urgente', () => {
-  const r = qualify({ situacao: 'pagador', pagadorMotivo: 'cobranca', idade: 'menor', advogado: 'nao', honorarios: 'sim' });
+test('gestante no fim da gravidez é urgente e quente', () => {
+  const r = qualify({ situacao: 'gravidez', gestacao: '7mais', indicios: 'sim', renda: 'clt', advogado: 'nao', honorarios: 'sim' });
   assert.equal(r.tier, 'quente');
   assert.ok(r.flags.some((f) => f.startsWith('URGENTE')));
 });
 
 test('caso fraco fica frio, mas continua qualificado', () => {
-  const r = qualify({ situacao: 'revisao', idade: 'maior', renda: 'desempregado', localizacao: 'nao', advogado: 'nao', honorarios: 'valores' });
+  const r = qualify({ situacao: 'revisao', idade: 'maior', renda: 'desempregado', advogado: 'nao', honorarios: 'valores' });
   assert.equal(r.qualified, true);
   assert.equal(r.tier, 'frio');
 });
 
 test('mensagem do WhatsApp traz protocolo e respostas, sem pontuação interna', () => {
-  const answers = { situacao: 'execucao', titulo: 'judicial', atraso: 'mais3', idade: 'menor', renda: 'clt', localizacao: 'sim', advogado: 'nao', honorarios: 'sim' };
+  const answers = { situacao: 'execucao', titulo: 'judicial', atraso: 'mais3', idade: 'menor', renda: 'clt', advogado: 'nao', honorarios: 'sim' };
   const msg = buildWhatsAppMessage({ nome: 'Maria Silva', whatsapp: '11912345678', cidade: 'Campinas', uf: 'SP' }, answers, 'PA-EXA-K7Q2');
   assert.match(msg, /Protocolo: PA-EXA-K7Q2/);
   assert.match(msg, /• Atraso: Mais de 3 meses/);
+  assert.doesNotMatch(msg, /Já tem advogado|Atendimento particular/);
   assert.match(msg, /Campinas\/SP/);
   assert.doesNotMatch(msg, /quente|pontua/i);
 });

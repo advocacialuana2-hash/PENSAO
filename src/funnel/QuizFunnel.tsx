@@ -22,21 +22,26 @@ import { getAttribution, sendLead, trackEvent } from './tracking';
 
 // --- Contexto: qualquer CTA da página abre o quiz ---
 
-const FunnelContext = createContext<(origin: string) => void>(() => {});
+// `preset` permite começar o quiz já com a situação escolhida na própria página.
+type OpenFunnel = (origin: string, preset?: Answers) => void;
+
+const FunnelContext = createContext<OpenFunnel>(() => {});
 
 export const useOpenFunnel = () => useContext(FunnelContext);
 
 export function FunnelProvider({ children }: { children: React.ReactNode }) {
-  const [origin, setOrigin] = useState<string | null>(null);
-  const open = useCallback((from: string) => {
-    setOrigin(from);
-    trackEvent('QuizIniciado', { origem: from }, true);
+  const [session, setSession] = useState<{ origin: string; preset: Answers } | null>(null);
+  const open = useCallback<OpenFunnel>((origin, preset: Answers = {}) => {
+    setSession({ origin, preset });
+    trackEvent('QuizIniciado', { origem: origin, situacao: preset.situacao }, true);
   }, []);
 
   return (
     <FunnelContext.Provider value={open}>
       {children}
-      <AnimatePresence>{origin && <QuizModal origin={origin} onClose={() => setOrigin(null)} />}</AnimatePresence>
+      <AnimatePresence>
+        {session && <QuizModal origin={session.origin} preset={session.preset} onClose={() => setSession(null)} />}
+      </AnimatePresence>
     </FunnelContext.Provider>
   );
 }
@@ -54,9 +59,9 @@ const UFS = [
   'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ];
 
-function QuizModal({ origin, onClose }: { origin: string; onClose: () => void }) {
-  const [answers, setAnswers] = useState<Answers>({});
-  const [step, setStep] = useState(0);
+function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answers; onClose: () => void }) {
+  const [answers, setAnswers] = useState<Answers>(preset);
+  const [step, setStep] = useState(preset.situacao ? 1 : 0);
   const [phase, setPhase] = useState<Phase>({ kind: 'questions' });
 
   const questions = useMemo(() => visibleQuestions(answers), [answers]);
@@ -157,8 +162,10 @@ function QuizModal({ origin, onClose }: { origin: string; onClose: () => void })
               <button type="button" onClick={back} className="flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-brand-600">
                 <ChevronLeft size={18} /> Voltar
               </button>
+            ) : phase.kind === 'questions' ? (
+              <span className="text-sm font-semibold text-brand-600">Leva menos de 1 minuto</span>
             ) : (
-              <span className="text-xs font-bold uppercase tracking-widest text-brand-600">Análise do seu caso</span>
+              <span />
             )}
             <button type="button" onClick={onClose} aria-label="Fechar" className="p-2 -m-2 text-gray-400 hover:text-brand-900">
               <X size={22} />
@@ -178,7 +185,10 @@ function QuizModal({ origin, onClose }: { origin: string; onClose: () => void })
           <AnimatePresence mode="wait">
             {phase.kind === 'questions' && question && (
               <motion.div key={question.id} initial={{ x: 30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -30, opacity: 0 }}>
-                <h2 id="quiz-title" className="text-2xl font-serif font-bold text-brand-900 leading-snug mb-2">
+                <p className="text-sm font-medium text-gray-400 mb-2">
+                  Pergunta {step + 1} de {questions.length}
+                </p>
+                <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2">
                   {question.title}
                 </h2>
                 {question.subtitle && <p className="text-sm text-gray-500 mb-2">{question.subtitle}</p>}
@@ -190,13 +200,16 @@ function QuizModal({ origin, onClose }: { origin: string; onClose: () => void })
                         key={option.value}
                         type="button"
                         onClick={() => answer(question.id, option.value)}
-                        className={`w-full flex items-center justify-between gap-3 text-left px-5 py-4 rounded-2xl border-2 font-medium transition-all ${
+                        className={`w-full min-h-[60px] flex items-center justify-between gap-3 text-left px-5 py-4 rounded-2xl border-2 text-lg transition-all ${
                           selected
-                            ? 'border-brand-600 bg-brand-50 text-brand-900'
-                            : 'border-brand-100 text-gray-700 hover:border-brand-400 hover:bg-brand-50/50'
+                            ? 'border-brand-500 bg-brand-50 text-brand-900'
+                            : 'border-brand-100 bg-cream text-gray-800 hover:border-brand-300 hover:bg-brand-50'
                         }`}
                       >
-                        {option.label}
+                        <span>
+                          <span className="block font-semibold">{option.label}</span>
+                          {option.hint && <span className="block text-sm text-gray-500 mt-0.5">{option.hint}</span>}
+                        </span>
                         <ChevronRight size={18} className="shrink-0 text-brand-400" />
                       </button>
                     );
@@ -256,7 +269,7 @@ function ContactForm({ onSubmit }: { onSubmit: (contact: LeadContact) => void })
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <h2 id="quiz-title" className="text-2xl font-serif font-bold text-brand-900 leading-snug mb-2">
+      <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2">
         Última etapa: para onde enviamos o retorno?
       </h2>
       <p className="text-sm text-gray-500 mb-6">Uma pessoa da equipe vai continuar o atendimento pelo WhatsApp.</p>
@@ -345,7 +358,7 @@ function QualifiedScreen({ link, nome }: { link: string; nome: string }) {
       <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
         <ShieldCheck className="text-green-600" size={34} />
       </div>
-      <h2 id="quiz-title" className="text-2xl font-serif font-bold text-brand-900 mb-3">
+      <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 mb-3">
         {firstName(nome)}, recebemos sua análise
       </h2>
       <p className="text-gray-600 leading-relaxed mb-8">
@@ -357,7 +370,7 @@ function QualifiedScreen({ link, nome }: { link: string; nome: string }) {
           e.preventDefault();
           goToWhatsApp();
         }}
-        className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white py-4 rounded-2xl font-bold text-lg shadow-xl flex items-center justify-center gap-2"
+        className="w-full bg-whatsapp hover:bg-whatsapp-dark text-white py-4 rounded-2xl font-bold text-lg shadow-xl flex items-center justify-center gap-2"
       >
         <MessageCircle size={22} /> Continuar no WhatsApp
       </a>
@@ -377,12 +390,12 @@ function DisqualifiedScreen({ reason, onClose }: { reason: DisqualifyReason; onC
         }
       : {
           title: 'Existe atendimento gratuito para o seu caso',
-          text: 'Quem não pode pagar advogado(a) particular tem direito a atendimento pela Defensoria Pública do seu estado. Leve documento com foto, comprovante de residência, certidão de nascimento do(a) filho(a) e o que tiver sobre a renda do pai.',
+          text: 'Quem não pode pagar advogado(a) particular tem direito a atendimento pela Defensoria Pública do seu estado. Leve documento com foto, comprovante de residência, certidão de nascimento do(a) filho(a) ou exame da gravidez e o que tiver sobre a renda do pai.',
         };
 
   return (
     <div className="text-center">
-      <h2 id="quiz-title" className="text-2xl font-serif font-bold text-brand-900 mb-3">
+      <h2 id="quiz-title" className="text-2xl font-serif font-semibold text-brand-900 mb-3">
         {content.title}
       </h2>
       <p className="text-gray-600 leading-relaxed mb-8">{content.text}</p>
