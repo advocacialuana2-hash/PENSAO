@@ -57,7 +57,7 @@ test('resumo vai para a equipe e a primeira mensagem é do escritório, sem dado
   assert.match(resumo, /• Trabalho: Pagava o INSS por conta própria/);
   assert.match(resumo, /Campinas\/SP/);
   const opener = buildOfficeOpener(contact, 'SM-CIA-K7Q2');
-  assert.match(opener, /^Olá, Maria! Aqui é do escritório de advocacia\./);
+  assert.match(opener, /^Olá, Maria! Aqui é da G1 Auxílios Previdenciários\./);
   assert.match(opener, /protocolo SM-CIA-K7Q2/);
   assert.doesNotMatch(opener + resumo, /quente|pontua|alerta/i);
 });

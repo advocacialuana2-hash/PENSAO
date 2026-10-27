@@ -6,8 +6,8 @@ const env: Partial<ImportMetaEnv> = import.meta.env ?? {};
 export const LEAD_WEBHOOK_URL = env.VITE_LEAD_WEBHOOK_URL || '';
 export const META_PIXEL_ID = env.VITE_META_PIXEL_ID || '';
 
-// Nome do escritório no rodapé. Vazio = linha omitida.
-export const BRAND_NAME = env.VITE_BRAND_NAME || '';
+// Nome exibido no site e usado na primeira mensagem para a cliente.
+export const BRAND_NAME = env.VITE_BRAND_NAME || 'G1 Auxílios Previdenciários';
 
 // Piso do benefício: 120 dias (4 meses) × salário mínimo (CF, art. 201, § 2º). Atualizar a cada novo salário mínimo.
 export const SALARIO_MINIMO = 1621;

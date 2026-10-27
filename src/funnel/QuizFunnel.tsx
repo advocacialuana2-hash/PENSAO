@@ -19,6 +19,7 @@ import {
   whatsappLink,
 } from './qualify';
 import { getAttribution, sendLead, trackEvent } from './tracking';
+import { BRAND_NAME } from './config';
 
 const FIRST_QUESTION = QUESTIONS[0].id;
 
@@ -359,7 +360,7 @@ function ContactForm({ onSubmit, titleRef }: { onSubmit: (contact: LeadContact) 
       <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 leading-snug mb-2 outline-none">
         Falta pouco! Como o escritório fala com você?
       </h2>
-      <p className="text-base text-gray-700 mb-6">O escritório de advocacia vai entrar em contato com você por este WhatsApp.</p>
+      <p className="text-base text-gray-700 mb-6">A equipe da {BRAND_NAME} vai entrar em contato com você por este WhatsApp.</p>
 
       <div className="space-y-5">
         <Field label="Seu nome completo" field="nome" error={errors.nome}>
@@ -446,7 +447,7 @@ function QualifiedScreen({ contact, onClose, titleRef }: { contact: LeadContact;
         Pronto, {firstName(contact.nome)}! Recebemos suas respostas.
       </h2>
       <p className="text-lg text-gray-800 leading-relaxed mb-6">
-        Em breve, o escritório de advocacia entra em contato com você pelo WhatsApp.
+        Em breve, a <strong>{BRAND_NAME}</strong> entra em contato com você pelo WhatsApp.
       </p>
       <div className="flex items-center justify-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4 mb-8">
         <MessageCircle className="text-whatsapp shrink-0" size={26} aria-hidden="true" />

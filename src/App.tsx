@@ -29,13 +29,16 @@ const SkipLink = () => (
   </a>
 );
 
+// Logo da G1 recriado em texto (preto e branco, como na página do Facebook).
 const Logo = () => (
-  <span className="flex items-center gap-2">
-    <span className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center" aria-hidden="true">
-      <Heart className="text-brand-700" size={20} fill="currentColor" />
+  <span className="flex items-center gap-2.5" aria-label={BRAND_NAME} role="img">
+    <span className="w-11 h-11 rounded-full bg-white border-[3px] border-black flex items-center justify-center" aria-hidden="true">
+      <span className="font-display text-lg font-extrabold text-black tracking-tighter leading-none">G1</span>
     </span>
-    <span className="font-display text-lg font-bold text-brand-900 leading-tight">
-      Salário-<span className="text-brand-700">Maternidade</span>
+    <span className="font-display font-extrabold text-black uppercase leading-[1.05] text-[0.8rem] sm:text-sm" aria-hidden="true">
+      Auxílios
+      <br />
+      Previdenciários
     </span>
   </span>
 );
@@ -309,7 +312,7 @@ const Footer = () => (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
       <Logo />
       <div className="text-base text-gray-700 space-y-1 md:text-right">
-        {BRAND_NAME && <p className="font-bold text-brand-900">{BRAND_NAME}</p>}
+        <p className="font-bold text-brand-900">{BRAND_NAME}</p>
         <p>Atendimento on-line em todo o Brasil</p>
         <p>Informações protegidas por sigilo profissional.</p>
       </div>

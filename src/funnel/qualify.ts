@@ -1,4 +1,5 @@
 import { Answers, QUESTIONS, Question, QuestionId, optionLabel } from './questions';
+import { BRAND_NAME } from './config';
 
 export type CaseType = 'desempregada' | 'contribuinte' | 'rural';
 export type Tier = 'quente' | 'morno' | 'frio';
@@ -119,7 +120,7 @@ export const caseSummary = (contact: LeadContact, answers: Answers): string =>
 // Primeira mensagem do escritório para a cliente. Só cita o que ela mesma informou.
 export function buildOfficeOpener(contact: LeadContact, protocol: string): string {
   return [
-    `Olá, ${firstName(contact.nome)}! Aqui é do escritório de advocacia.`,
+    `Olá, ${firstName(contact.nome)}! Aqui é da ${BRAND_NAME}.`,
     `Recebemos suas respostas sobre o salário-maternidade (protocolo ${protocol}).`,
     'Podemos conversar agora sobre o seu caso?',
   ].join(' ');

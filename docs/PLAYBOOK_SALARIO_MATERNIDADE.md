@@ -1,4 +1,4 @@
-# Playbook do funil — Salário-maternidade
+# Playbook do funil — Salário-maternidade (G1 Auxílios Previdenciários)
 
 Funil: anúncio → página → teste de qualificação → formulário → **o escritório chama a cliente no WhatsApp** → contrato assinado on-line → requerimento no INSS.
 
@@ -55,7 +55,7 @@ Regra geral: frases curtas, uma pergunta por mensagem, sem promessa de resultado
 
 O link `link_whatsapp_cliente` do webhook já abre a conversa com esta mensagem:
 
-> Olá, {primeiro nome}! Aqui é do escritório de advocacia. Recebemos suas respostas sobre o salário-maternidade (protocolo {protocolo}). Podemos conversar agora sobre o seu caso?
+> Olá, {primeiro nome}! Aqui é da G1 Auxílios Previdenciários. Recebemos suas respostas sobre o salário-maternidade (protocolo {protocolo}). Podemos conversar agora sobre o seu caso?
 
 Quando ela responder, a pessoa da equipe se apresenta pelo nome e confirma o resumo (campo `resumo`) antes de seguir.
 
@@ -140,7 +140,7 @@ Acesso ao Meu INSS: cadastrar o advogado como procurador. Não pedir a senha gov
 |---|---|
 | `VITE_LEAD_WEBHOOK_URL` | Webhook do Make ou do CRM. Obrigatório |
 | `VITE_META_PIXEL_ID` | Pixel da Meta; vazio = nenhum script carregado |
-| `VITE_BRAND_NAME` | Nome do escritório no rodapé |
+| `VITE_BRAND_NAME` | Nome exibido no site e na primeira mensagem (padrão: G1 Auxílios Previdenciários) |
 
 Eventos do Pixel: `PageView`, `QuizIniciado`, `LeadDesqualificado` (com o motivo) e `Lead` (só qualificadas). Otimize as campanhas para `Lead`.
 
