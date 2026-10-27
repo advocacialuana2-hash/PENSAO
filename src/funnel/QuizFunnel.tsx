@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import { ChevronLeft, ChevronRight, Lock, MessageCircle, ShieldCheck, X } from 'lucide-react';
-import { Answers, QUESTIONS, QuestionId } from './questions';
+import { Answers, QUESTIONS, QUIZ_LENGTH, QuestionId } from './questions';
 import {
   CASE_LABELS,
   DisqualifyReason,
@@ -82,7 +82,7 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
 
   const questions = useMemo(() => visibleQuestions(answers), [answers]);
   // O formulário conta como uma etapa a mais na barra de progresso.
-  const totalSteps = questions.length + 1;
+  const totalSteps = QUIZ_LENGTH + 1;
   const currentStep = phase.kind === 'questions' ? step + 1 : totalSteps;
 
   useEffect(() => {
@@ -232,9 +232,9 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
             {phase.kind === 'questions' && question && (
               <motion.div key={question.id} initial={{ x: 24, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -24, opacity: 0 }}>
                 <p className="text-base font-semibold text-gray-700 mb-2">
-                  Pergunta {step + 1} de {questions.length}
+                  Pergunta {step + 1} de {QUIZ_LENGTH}
                 </p>
-                <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2 outline-none">
+                <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 leading-snug mb-2 outline-none">
                   {question.title}
                 </h2>
                 {question.subtitle && <p className="text-base text-gray-700 mb-2">{question.subtitle}</p>}
@@ -352,7 +352,7 @@ function ContactForm({ onSubmit, titleRef }: { onSubmit: (contact: LeadContact) 
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate>
-      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 leading-snug mb-2 outline-none">
+      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 leading-snug mb-2 outline-none">
         Falta pouco! Para onde mandamos a resposta?
       </h2>
       <p className="text-base text-gray-700 mb-6">Uma pessoa da equipe vai continuar a conversa com você pelo WhatsApp.</p>
@@ -459,7 +459,7 @@ function QualifiedScreen({ link, nome, titleRef }: { link: string; nome: string;
       <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
         <ShieldCheck className="text-whatsapp" size={34} aria-hidden="true" />
       </div>
-      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 mb-3 outline-none">
+      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 mb-3 outline-none">
         {firstName(nome)}, recebemos suas respostas
       </h2>
       <p className="text-lg text-gray-800 leading-relaxed mb-8">
@@ -512,10 +512,6 @@ const DISQUALIFIED_CONTENT: Record<DisqualifyReason, { title: string; text: stri
     title: 'Você já recebeu o benefício',
     text: 'O salário-maternidade é pago uma vez para cada nascimento ou adoção. Se você tiver outro filho, pode fazer o teste de novo.'
   },
-  representado: {
-    title: 'Seu pedido já tem quem cuide dele',
-    text: 'Como um(a) advogado(a) já acompanha seu pedido, o melhor é falar com ele(a) sobre as próximas etapas. Se decidir trocar, estamos à disposição.'
-  },
 };
 
 function DisqualifiedScreen({
@@ -533,7 +529,7 @@ function DisqualifiedScreen({
 
   return (
     <div className="text-center">
-      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-serif font-semibold text-brand-900 mb-3 outline-none">
+      <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 mb-3 outline-none">
         {content.title}
       </h2>
       <p className="text-lg text-gray-800 leading-relaxed mb-8">{content.text}</p>

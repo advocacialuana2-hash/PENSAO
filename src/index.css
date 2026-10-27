@@ -1,25 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Nunito:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Nunito:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Fraunces", ui-serif, Georgia, serif;
+  --font-display: "Poppins", ui-sans-serif, system-ui, sans-serif;
 
-  /* Rosé quente: acolhedor sem perder contraste (branco sobre 600 = 5,3:1). */
-  --color-brand-50: #fdf3f1;
-  --color-brand-100: #fae4e0;
-  --color-brand-200: #f3c9c4;
-  --color-brand-300: #e8a6a3;
-  --color-brand-400: #d77d80;
-  --color-brand-500: #c4606a;
-  --color-brand-600: #b04a5a;
-  --color-brand-700: #9b3d4d;
-  --color-brand-800: #7a3140;
-  --color-brand-900: #5a2a35;
+  /* Ameixa + magenta, como a referência. Branco sobre 600/700 e 600 sobre o fundo passam de 4,5:1. */
+  --color-brand-50: #fbf2f6;
+  --color-brand-100: #f6e1ea;
+  --color-brand-200: #ecc2d4;
+  --color-brand-300: #df9bb9;
+  --color-brand-400: #cf6f9b;
+  --color-brand-500: #c2558a;
+  --color-brand-600: #b8487d;
+  --color-brand-700: #a3416f;
+  --color-brand-800: #7d2f58;
+  --color-brand-900: #3b1747;
 
-  --color-cream: #fff8f4;
-  --color-peach: #fde8dc;
-  --color-sky: #e6eff8;
+  --color-cream: #faf6f8;
+  --color-peach: #fbe8ef;
+  --color-sky: #eef0fa;
   --color-whatsapp: #15803d;
   --color-whatsapp-dark: #166534;
 }

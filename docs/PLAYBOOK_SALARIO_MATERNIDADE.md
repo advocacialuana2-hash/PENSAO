@@ -7,8 +7,8 @@ Funil: anúncio → página → teste de qualificação → WhatsApp com resumo 
 | Etapa | O que acontece | Onde |
 |---|---|---|
 | 1. Clique no anúncio | UTMs e `fbclid` são gravados na sessão | `src/funnel/tracking.ts` |
-| 2. Página | A primeira pergunta já aparece no topo; qualquer botão abre o teste | `src/App.tsx` |
-| 3. Teste (4 a 6 perguntas) | As perguntas mudam conforme o tipo de segurada | `src/funnel/questions.ts` |
+| 2. Página | Estrutura da referência G7: foto em círculo, selo "Mesmo sem carteira assinada", valor mínimo em destaque, botão verde | `src/App.tsx` |
+| 3. Teste (sempre 4 perguntas) | Momento, tipo de trabalho, uma pergunta do perfil e pedido no INSS | `src/funnel/questions.ts` |
 | 4. Filtro | Casos inviáveis recebem explicação e opção de mudar a resposta, sem deixar dados | `src/funnel/qualify.ts` |
 | 5. Formulário | Nome, WhatsApp, cidade/UF e consentimento LGPD | `src/funnel/QuizFunnel.tsx` |
 | 6. Envio | Webhook recebe respostas, prioridade, alertas e UTMs; Pixel registra `Lead` | `tracking.ts` |
@@ -23,7 +23,6 @@ Funil: anúncio → página → teste de qualificação → WhatsApp com resumo 
 | Ainda empregada de carteira | Pagamento cabe à empresa (art. 72, § 1º) |
 | Mais de 3 anos sem contribuir | Excede o período de graça máximo (art. 15, II e §§ 1º e 2º) |
 | Já recebeu o benefício por esse filho | Benefício já concedido |
-| Já tem advogado e vai continuar | Código de Ética da OAB, art. 14 |
 
 ## 2. Leitura do protocolo
 
@@ -72,6 +71,11 @@ Com o CNIS em mãos, conferir se o parto caiu dentro do período de graça. Demi
 1. Que trabalho você faz no campo, na pesca ou no extrativismo? Desde quando?
 2. Trabalha sozinha ou com a família? Em terra própria, arrendada ou de terceiros?
 3. Que papéis você tem (declaração do sindicato, notas de venda, cadastro rural, contrato de terra)?
+
+**Todos os perfis**
+1. Algum advogado já cuida desse pedido? Se sim e ela quiser trocar, o advogado anterior deve ser comunicado antes (Código de Ética da OAB, art. 14).
+2. MEI ou autônoma: quantos meses pagou no total? Algum mês atrasado?
+3. Ex-empregada: foi demitida grávida? Se sim, avaliar estabilidade (ADCT, art. 10, II, *b*) com a área trabalhista.
 
 **Pedido já negado**
 1. Você tem a carta do INSS com o motivo da negativa? Pode mandar uma foto?
@@ -135,7 +139,7 @@ Acesso ao Meu INSS: cadastrar o advogado como procurador. Não pedir a senha gov
 
 Eventos do Pixel: `PageView`, `QuizIniciado`, `LeadDesqualificado` (com o motivo), `Lead` (só qualificadas) e `Contact` (abertura do WhatsApp). Otimize as campanhas para `Lead`.
 
-Campos do webhook (`application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, cada resposta (`momento`, `vinculo`, `empregoAtual`, `semContribuir`, `contribuicoes`, `provasRurais`, `pedidoInss`, `advogado`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
+Campos do webhook (`application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, cada resposta (`momento`, `vinculo`, `semContribuir`, `provasRurais`, `pedidoInss`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
 
 ## 5. Acessibilidade
 
@@ -150,6 +154,7 @@ A página e o teste passaram na auditoria automática WCAG 2.1 AA (axe-core) sem
 
 ## 6. Conformidade
 
-- **OAB:** sem promessa de resultado, sem depoimentos e sem números de casos (Código de Ética, art. 7º; Provimento 205/2021). Nome do escritório e inscrição na OAB devem constar do rodapé (art. 44).
+- **OAB:** a G7 é assessoria, não escritório de advocacia, e por isso usa "análise gratuita", "+60 mil atendimentos" e "99,6% de aprovação". Para advogados, esses elementos esbarram na vedação à captação, à mercantilização e à promessa de resultado (Código de Ética, art. 7º; Provimento 205/2021). A página mantém a estrutura e o visual da G7, mas troca esses números por fatos do benefício (120 dias, valor mínimo legal, 4 perguntas, atendimento on-line) e não usa "grátis". Nome do escritório e inscrição na OAB devem constar do rodapé (art. 44).
+- **Valor mínimo:** o destaque de R$ 6.484,00 é o piso legal (4 meses × salário mínimo de 2026, CF, art. 201, § 2º). Atualize `SALARIO_MINIMO` em `src/funnel/config.ts` quando o salário mínimo mudar.
 - **LGPD:** consentimento no formulário; quem é barrado no teste não deixa dados (art. 6º, III). Falta publicar a política de privacidade e linká-la no formulário (art. 9º).
 - **Imagem:** manter a autorização de uso de imagem da modelo da foto.
