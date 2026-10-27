@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildProtocol,
-  buildWhatsAppMessage,
+  buildOfficeOpener,
+  caseSummary,
   disqualification,
   normalizeWhatsApp,
   qualify,
@@ -49,13 +50,16 @@ test('rural sem documentos continua qualificada, com prioridade menor', () => {
   assert.notEqual(r.tier, 'quente');
 });
 
-test('mensagem do WhatsApp traz protocolo e respostas, sem dados internos', () => {
+test('resumo vai para a equipe e a primeira mensagem é do escritório, sem dados internos', () => {
+  const contact = { nome: 'Maria Silva', whatsapp: '11912345678', cidade: 'Campinas', uf: 'SP' };
   const answers = { momento: 'gravida', vinculo: 'contribuinte', semContribuir: 'contribuindo', pedidoInss: 'naoPediu' };
-  const msg = buildWhatsAppMessage({ nome: 'Maria Silva', whatsapp: '11912345678', cidade: 'Campinas', uf: 'SP' }, answers, 'SM-CIA-K7Q2');
-  assert.match(msg, /Protocolo: SM-CIA-K7Q2/);
-  assert.match(msg, /• Trabalho: Pagava o INSS por conta própria/);
-  assert.match(msg, /Campinas\/SP/);
-  assert.doesNotMatch(msg, /quente|pontua|alerta/i);
+  const resumo = caseSummary(contact, answers);
+  assert.match(resumo, /• Trabalho: Pagava o INSS por conta própria/);
+  assert.match(resumo, /Campinas\/SP/);
+  const opener = buildOfficeOpener(contact, 'SM-CIA-K7Q2');
+  assert.match(opener, /^Olá, Maria! Aqui é do escritório de advocacia\./);
+  assert.match(opener, /protocolo SM-CIA-K7Q2/);
+  assert.doesNotMatch(opener + resumo, /quente|pontua|alerta/i);
 });
 
 test('valida celular brasileiro', () => {

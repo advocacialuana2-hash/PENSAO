@@ -89,10 +89,13 @@ export function trackEvent(name: string, params: Record<string, unknown> = {}, c
 
 // Envio como formulário simples: dispensa preflight CORS e o Make/Zapier separa os campos sozinho.
 export function sendLead(fields: Record<string, string | number | boolean>) {
-  if (!LEAD_WEBHOOK_URL) return;
+  if (!LEAD_WEBHOOK_URL) {
+    console.error('VITE_LEAD_WEBHOOK_URL não configurado: o lead não foi enviado ao escritório.');
+    return;
+  }
   const body = new URLSearchParams();
   for (const [key, value] of Object.entries(fields)) body.append(key, String(value));
   fetch(LEAD_WEBHOOK_URL, { method: 'POST', mode: 'no-cors', keepalive: true, body }).catch(() => {
-    // Falha de rede não pode impedir a cliente de chegar ao WhatsApp.
+    // Falha de rede não pode travar a tela da cliente.
   });
 }

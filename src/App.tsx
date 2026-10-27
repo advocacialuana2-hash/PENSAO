@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { FunnelProvider, useOpenFunnel } from './funnel/QuizFunnel';
-import { BRAND_NAME, OAB_INFO, SALARIO_MINIMO, SALARIO_MINIMO_ANO, VALOR_MINIMO_BENEFICIO, formatBRL } from './funnel/config';
+import { BRAND_NAME, SALARIO_MINIMO, SALARIO_MINIMO_ANO, VALOR_MINIMO_BENEFICIO, formatBRL } from './funnel/config';
 
 // --- Seções ---
 
@@ -225,7 +225,7 @@ const HowItWorks = () => (
       <ol className="grid md:grid-cols-3 gap-6">
         {[
           { title: 'Faça o teste', desc: 'São poucas perguntas. É só tocar na resposta.' },
-          { title: 'Converse no WhatsApp', desc: 'Uma pessoa da equipe entende o seu caso e explica tudo.' },
+          { title: 'O escritório chama você', desc: 'Em breve, uma pessoa do escritório fala com você pelo WhatsApp e explica tudo.' },
           { title: 'A gente cuida do pedido', desc: 'Você assina pelo celular e a equipe faz o pedido no INSS.' },
         ].map((item, i) => (
           <li key={item.title} className="bg-cream rounded-[28px] p-7 border border-brand-100">
@@ -310,7 +310,6 @@ const Footer = () => (
       <Logo />
       <div className="text-base text-gray-700 space-y-1 md:text-right">
         {BRAND_NAME && <p className="font-bold text-brand-900">{BRAND_NAME}</p>}
-        {OAB_INFO && <p>{OAB_INFO}</p>}
         <p>Atendimento on-line em todo o Brasil</p>
         <p>Informações protegidas por sigilo profissional.</p>
       </div>

@@ -8,7 +8,8 @@ import {
   LeadContact,
   answerSummary,
   buildProtocol,
-  buildWhatsAppMessage,
+  buildOfficeOpener,
+  caseSummary,
   disqualification,
   firstName,
   formatWhatsApp,
@@ -17,7 +18,6 @@ import {
   visibleQuestions,
   whatsappLink,
 } from './qualify';
-import { REDIRECT_DELAY_SECONDS, WHATSAPP_NUMBER } from './config';
 import { getAttribution, sendLead, trackEvent } from './tracking';
 
 const FIRST_QUESTION = QUESTIONS[0].id;
@@ -65,7 +65,7 @@ export function FunnelProvider({ children }: { children: React.ReactNode }) {
 type Phase =
   | { kind: 'questions' }
   | { kind: 'form' }
-  | { kind: 'qualified'; link: string; nome: string }
+  | { kind: 'qualified'; contact: LeadContact }
   | { kind: 'disqualified'; reason: DisqualifyReason };
 
 const UFS = [
@@ -138,14 +138,13 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
   const submit = (contact: LeadContact) => {
     const result = qualify(answers);
     const protocol = buildProtocol(result);
-    const message = buildWhatsAppMessage(contact, answers, protocol);
-    const link = whatsappLink(WHATSAPP_NUMBER, message);
+    const clientPhone = `55${contact.whatsapp}`;
 
     sendLead({
       protocolo: protocol,
       criado_em: new Date().toISOString(),
       nome: contact.nome.trim(),
-      whatsapp: `55${contact.whatsapp}`,
+      whatsapp: clientPhone,
       cidade: contact.cidade.trim(),
       uf: contact.uf,
       caso: result.caseType,
@@ -154,6 +153,9 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
       pontuacao: result.score,
       alertas: result.flags.join(' | '),
       respostas: answerSummary(answers).map(({ label, value }) => `${label}: ${value}`).join(' | '),
+      resumo: caseSummary(contact, answers),
+      // A equipe toca neste link e já abre a conversa com a cliente, com a primeira mensagem escrita.
+      link_whatsapp_cliente: whatsappLink(clientPhone, buildOfficeOpener(contact, protocol)),
       ...answers,
       origem_cta: origin,
       consentimento_lgpd: true,
@@ -161,7 +163,7 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
     });
     trackEvent('Lead', { content_category: result.caseType, content_name: result.tier, origem: origin });
 
-    setPhase({ kind: 'qualified', link, nome: contact.nome });
+    setPhase({ kind: 'qualified', contact });
   };
 
   const canGoBack = (phase.kind === 'questions' && step > 0) || phase.kind === 'form' || phase.kind === 'disqualified';
@@ -197,8 +199,10 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
               >
                 <ChevronLeft size={22} aria-hidden="true" /> Voltar
               </button>
-            ) : (
+            ) : phase.kind === 'questions' ? (
               <span className="text-base font-semibold text-brand-700">Leva menos de 1 minuto</span>
+            ) : (
+              <span />
             )}
             <button
               type="button"
@@ -273,7 +277,7 @@ function QuizModal({ origin, preset, onClose }: { origin: string; preset: Answer
 
             {phase.kind === 'qualified' && (
               <motion.div key="qualified" initial={{ scale: 0.97, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-                <QualifiedScreen link={phase.link} nome={phase.nome} titleRef={titleRef} />
+                <QualifiedScreen contact={phase.contact} onClose={onClose} titleRef={titleRef} />
               </motion.div>
             )}
 
@@ -353,9 +357,9 @@ function ContactForm({ onSubmit, titleRef }: { onSubmit: (contact: LeadContact) 
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate>
       <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 leading-snug mb-2 outline-none">
-        Falta pouco! Para onde mandamos a resposta?
+        Falta pouco! Como o escritório fala com você?
       </h2>
-      <p className="text-base text-gray-700 mb-6">Uma pessoa da equipe vai continuar a conversa com você pelo WhatsApp.</p>
+      <p className="text-base text-gray-700 mb-6">O escritório de advocacia vai entrar em contato com você por este WhatsApp.</p>
 
       <div className="space-y-5">
         <Field label="Seu nome completo" field="nome" error={errors.nome}>
@@ -432,61 +436,31 @@ function Field({ label, field, error, children }: { label: string; field: string
   );
 }
 
-function QualifiedScreen({ link, nome, titleRef }: { link: string; nome: string; titleRef: TitleRef }) {
-  const [seconds, setSeconds] = useState(REDIRECT_DELAY_SECONDS);
-  const [paused, setPaused] = useState(false);
-  const redirected = useRef(false);
-
-  const goToWhatsApp = useCallback(() => {
-    if (redirected.current) return;
-    redirected.current = true;
-    trackEvent('Contact', { canal: 'whatsapp' });
-    window.location.href = link;
-  }, [link]);
-
-  useEffect(() => {
-    if (paused) return;
-    if (seconds <= 0) {
-      goToWhatsApp();
-      return;
-    }
-    const timer = window.setTimeout(() => setSeconds((s) => s - 1), 1000);
-    return () => window.clearTimeout(timer);
-  }, [seconds, paused, goToWhatsApp]);
-
+function QualifiedScreen({ contact, onClose, titleRef }: { contact: LeadContact; onClose: () => void; titleRef: TitleRef }) {
   return (
     <div className="text-center">
       <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
         <ShieldCheck className="text-whatsapp" size={34} aria-hidden="true" />
       </div>
       <h2 id="quiz-title" ref={titleRef} tabIndex={-1} className="text-2xl font-display font-bold text-brand-900 mb-3 outline-none">
-        {firstName(nome)}, recebemos suas respostas
+        Pronto, {firstName(contact.nome)}! Recebemos suas respostas.
       </h2>
-      <p className="text-lg text-gray-800 leading-relaxed mb-8">
-        Pelo que você contou, seu caso pode ser analisado pela nossa equipe. Toque no botão para mandar o resumo no WhatsApp e continuar a conversa.
+      <p className="text-lg text-gray-800 leading-relaxed mb-6">
+        Em breve, o escritório de advocacia entra em contato com você pelo WhatsApp.
       </p>
-      <a
-        href={link}
-        onClick={(e) => {
-          e.preventDefault();
-          goToWhatsApp();
-        }}
-        className="w-full min-h-[60px] bg-whatsapp hover:bg-whatsapp-dark text-white rounded-2xl font-bold text-xl shadow-lg flex items-center justify-center gap-2"
-      >
-        <MessageCircle size={24} aria-hidden="true" /> Continuar no WhatsApp
-      </a>
-      <div className="mt-4 text-base text-gray-700" aria-live="polite">
-        {paused ? (
-          'Quando quiser, toque no botão verde.'
-        ) : (
-          <>
-            {seconds > 0 ? `O WhatsApp vai abrir em ${seconds} segundos. ` : 'Abrindo o WhatsApp… '}
-            <button type="button" onClick={() => setPaused(true)} className="underline font-semibold text-brand-700 min-h-[44px]">
-              Esperar
-            </button>
-          </>
-        )}
+      <div className="flex items-center justify-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-5 py-4 mb-8">
+        <MessageCircle className="text-whatsapp shrink-0" size={26} aria-hidden="true" />
+        <p className="text-lg text-gray-900">
+          Fique de olho no número <strong className="whitespace-nowrap">{formatWhatsApp(contact.whatsapp)}</strong>
+        </p>
       </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="w-full min-h-[56px] border-2 border-brand-700 text-brand-800 rounded-2xl font-bold text-lg hover:bg-brand-50"
+      >
+        Voltar ao site
+      </button>
     </div>
   );
 }

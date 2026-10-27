@@ -109,20 +109,23 @@ export const answerSummary = (answers: Answers, omit: QuestionId[] = []): { labe
 
 export const firstName = (nome: string) => nome.trim().split(/\s+/)[0] ?? '';
 
-// Texto que a própria cliente envia ao abrir o WhatsApp.
-export function buildWhatsAppMessage(contact: LeadContact, answers: Answers, protocol: string): string {
-  const lines = [
-    `Olá! Me chamo ${contact.nome.trim()} e fiz o teste do salário-maternidade no site.`,
-    `Protocolo: ${protocol}`,
-    '',
+// Resumo do caso para a equipe ler antes de chamar a cliente.
+export const caseSummary = (contact: LeadContact, answers: Answers): string =>
+  [
     ...answerSummary(answers).map(({ label, value }) => `• ${label}: ${value}`),
     `• Cidade: ${contact.cidade.trim()}/${contact.uf}`,
-    '',
-    'Gostaria de continuar o atendimento.',
-  ];
-  return lines.join('\n');
+  ].join('\n');
+
+// Primeira mensagem do escritório para a cliente. Só cita o que ela mesma informou.
+export function buildOfficeOpener(contact: LeadContact, protocol: string): string {
+  return [
+    `Olá, ${firstName(contact.nome)}! Aqui é do escritório de advocacia.`,
+    `Recebemos suas respostas sobre o salário-maternidade (protocolo ${protocol}).`,
+    'Podemos conversar agora sobre o seu caso?',
+  ].join(' ');
 }
 
+// Link para a equipe abrir a conversa com a cliente já com a primeira mensagem escrita.
 export const whatsappLink = (number: string, message: string) =>
   `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 

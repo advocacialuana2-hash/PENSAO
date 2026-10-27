@@ -1,6 +1,8 @@
 # Playbook do funil — Salário-maternidade
 
-Funil: anúncio → página → teste de qualificação → WhatsApp com resumo pronto → atendimento → contrato assinado on-line → requerimento no INSS.
+Funil: anúncio → página → teste de qualificação → formulário → **o escritório chama a cliente no WhatsApp** → contrato assinado on-line → requerimento no INSS.
+
+A página não mostra o número do escritório. A cliente só conhece o número quando o escritório entra em contato.
 
 ## 1. Como o funil funciona
 
@@ -11,8 +13,9 @@ Funil: anúncio → página → teste de qualificação → WhatsApp com resumo 
 | 3. Teste (sempre 4 perguntas) | Momento, tipo de trabalho, uma pergunta do perfil e pedido no INSS | `src/funnel/questions.ts` |
 | 4. Filtro | Casos inviáveis recebem explicação e opção de mudar a resposta, sem deixar dados | `src/funnel/qualify.ts` |
 | 5. Formulário | Nome, WhatsApp, cidade/UF e consentimento LGPD | `src/funnel/QuizFunnel.tsx` |
-| 6. Envio | Webhook recebe respostas, prioridade, alertas e UTMs; Pixel registra `Lead` | `tracking.ts` |
-| 7. WhatsApp | Em 4 s (ou ao tocar no botão) a cliente abre o WhatsApp com o resumo escrito | `qualify.ts` |
+| 6. Envio | Webhook recebe respostas, resumo, prioridade, alertas, UTMs e o link para chamar a cliente; Pixel registra `Lead` | `tracking.ts` |
+| 7. Tela final | "Em breve, o escritório de advocacia entra em contato com você", com o número que ela informou | `QuizFunnel.tsx` |
+| 8. Contato | A equipe toca em `link_whatsapp_cliente` e a conversa abre com a primeira mensagem pronta | `qualify.ts` |
 
 ### Quem é barrado no teste
 
@@ -36,9 +39,11 @@ Formato: `SM-<PERFIL><PRIORIDADE>-<CÓDIGO>` — exemplo `SM-DEA-K7Q2`.
 
 | Prioridade | Pontuação | Primeira resposta |
 |---|---|---|
-| A — quente | 80 ou mais | Imediata, no horário comercial |
-| B — morno | 55 a 79 | Mesmo dia |
-| C — frio | abaixo de 55 | Até o dia útil seguinte |
+| A — quente | 80 ou mais | Até 5 minutos, no horário comercial |
+| B — morno | 55 a 79 | Até 1 hora |
+| C — frio | abaixo de 55 | Mesmo dia |
+
+Como a cliente não tem o número do escritório, ela depende inteiramente desse contato. Quanto mais rápido, maior a chance de ela lembrar do teste e responder.
 
 Pesos e limites: `WEIGHTS` e `TIER_THRESHOLDS` em `src/funnel/qualify.ts`. Ajuste depois das primeiras semanas, comparando a prioridade com o fechamento real.
 
@@ -48,9 +53,11 @@ Regra geral: frases curtas, uma pergunta por mensagem, sem promessa de resultado
 
 ### 3.1 Abertura
 
-> Oi, {nome}! Aqui é {atendente}, da equipe. Recebi seu teste (protocolo {protocolo}) e já li suas respostas.
->
-> Vou te fazer algumas perguntas rápidas para confirmar seu direito. Pode ser agora?
+O link `link_whatsapp_cliente` do webhook já abre a conversa com esta mensagem:
+
+> Olá, {primeiro nome}! Aqui é do escritório de advocacia. Recebemos suas respostas sobre o salário-maternidade (protocolo {protocolo}). Podemos conversar agora sobre o seu caso?
+
+Quando ela responder, a pessoa da equipe se apresenta pelo nome e confirma o resumo (campo `resumo`) antes de seguir.
 
 ### 3.2 Confirmação por perfil
 
@@ -131,15 +138,15 @@ Acesso ao Meu INSS: cadastrar o advogado como procurador. Não pedir a senha gov
 
 | Variável | Uso |
 |---|---|
-| `VITE_WHATSAPP_NUMBER` | Número do escritório com 55 + DDD |
-| `VITE_LEAD_WEBHOOK_URL` | Webhook do Make ou do CRM |
+| `VITE_LEAD_WEBHOOK_URL` | Webhook do Make ou do CRM. Obrigatório |
 | `VITE_META_PIXEL_ID` | Pixel da Meta; vazio = nenhum script carregado |
 | `VITE_BRAND_NAME` | Nome do escritório no rodapé |
-| `VITE_OAB_INFO` | Inscrição na OAB no rodapé |
 
-Eventos do Pixel: `PageView`, `QuizIniciado`, `LeadDesqualificado` (com o motivo), `Lead` (só qualificadas) e `Contact` (abertura do WhatsApp). Otimize as campanhas para `Lead`.
+Eventos do Pixel: `PageView`, `QuizIniciado`, `LeadDesqualificado` (com o motivo) e `Lead` (só qualificadas). Otimize as campanhas para `Lead`.
 
-Campos do webhook (`application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, cada resposta (`momento`, `vinculo`, `semContribuir`, `provasRurais`, `pedidoInss`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
+Cenário mínimo no Make: Webhook → planilha ou CRM → mensagem para o grupo da equipe com nome, prioridade, alertas, resumo e `link_whatsapp_cliente` → (prioridade A) alerta imediato ao responsável. **Teste o cenário antes de ligar os anúncios:** sem ele, nenhum lead chega ao escritório.
+
+Campos do webhook (`application/x-www-form-urlencoded`): `protocolo`, `criado_em`, `nome`, `whatsapp`, `cidade`, `uf`, `caso`, `caso_descricao`, `prioridade`, `pontuacao`, `alertas`, `respostas`, `resumo`, `link_whatsapp_cliente`, cada resposta (`momento`, `vinculo`, `semContribuir`, `provasRurais`, `pedidoInss`), `origem_cta`, `consentimento_lgpd`, UTMs, `fbclid`, `gclid` e `landing_url`.
 
 ## 5. Acessibilidade
 
@@ -150,11 +157,10 @@ A página e o teste passaram na auditoria automática WCAG 2.1 AA (axe-core) sem
 - Navegação completa por teclado, com foco visível, atalho "Ir direto para o teste" e foco preso dentro do teste enquanto ele está aberto.
 - Leitor de tela: cada nova pergunta é anunciada, a barra de progresso informa a etapa e os erros do formulário são lidos junto com o campo.
 - Animações desligadas para quem ativa "reduzir movimento" no celular.
-- Redirecionamento ao WhatsApp com botão "Esperar".
 
 ## 6. Conformidade
 
-- **OAB:** a G7 é assessoria, não escritório de advocacia, e por isso usa "análise gratuita", "+60 mil atendimentos" e "99,6% de aprovação". Para advogados, esses elementos esbarram na vedação à captação, à mercantilização e à promessa de resultado (Código de Ética, art. 7º; Provimento 205/2021). A página mantém a estrutura e o visual da G7, mas troca esses números por fatos do benefício (120 dias, valor mínimo legal, 4 perguntas, atendimento on-line) e não usa "grátis". Nome do escritório e inscrição na OAB devem constar do rodapé (art. 44).
+- **OAB:** a G7 é assessoria, não escritório de advocacia, e por isso usa "análise gratuita", "+60 mil atendimentos" e "99,6% de aprovação". Para advogados, esses elementos esbarram na vedação à captação, à mercantilização e à promessa de resultado (Código de Ética, art. 7º; Provimento 205/2021). A página mantém a estrutura e o visual da G7, mas troca esses números por fatos do benefício (120 dias, valor mínimo legal, 4 perguntas, atendimento on-line) e não usa "grátis". Por decisão do escritório, a página não exibe número de OAB nem telefone. O Código de Ética (art. 44) pede nome e inscrição na OAB na publicidade; a identificação completa é feita no primeiro contato e no contrato.
 - **Valor mínimo:** o destaque de R$ 6.484,00 é o piso legal (4 meses × salário mínimo de 2026, CF, art. 201, § 2º). Atualize `SALARIO_MINIMO` em `src/funnel/config.ts` quando o salário mínimo mudar.
 - **LGPD:** consentimento no formulário; quem é barrado no teste não deixa dados (art. 6º, III). Falta publicar a política de privacidade e linká-la no formulário (art. 9º).
 - **Imagem:** manter a autorização de uso de imagem da modelo da foto.
