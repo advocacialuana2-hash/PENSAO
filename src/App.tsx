@@ -22,11 +22,12 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { FunnelProvider, useOpenFunnel } from './funnel/QuizFunnel';
 
 // --- Components ---
 
 const Navbar = () => {
-  const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent("Olá, gostaria de saber mais sobre pensão alimentícia.")}`;
+  const openFunnel = useOpenFunnel();
   
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-brand-100">
@@ -42,15 +43,14 @@ const Navbar = () => {
             <a href="#servicos" className="hover:text-brand-600 transition-colors">Serviços</a>
             <a href="#faq" className="hover:text-brand-600 transition-colors">Dúvidas</a>
           </div>
-          <a 
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => openFunnel('navbar')}
             className="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-full font-bold text-sm transition-all shadow-lg shadow-brand-200 flex items-center gap-2"
           >
             <MessageCircle size={18} />
             Falar com Especialista
-          </a>
+          </button>
         </div>
       </div>
     </nav>
@@ -58,7 +58,7 @@ const Navbar = () => {
 };
 
 const Hero = () => {
-  const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent("Olá, gostaria de saber mais sobre pensão alimentícia.")}`;
+  const openFunnel = useOpenFunnel();
 
   return (
     <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
@@ -81,15 +81,14 @@ const Hero = () => {
               O <strong>Help Pensão Alimentícia</strong> nasceu para garantir que a justiça seja feita. Atuação ágil, humanizada e focada em resultados reais para sua família.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <a 
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => openFunnel('hero')}
                 className="bg-brand-600 hover:bg-brand-700 text-white px-8 py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-brand-200 flex items-center justify-center gap-2 group"
               >
                 Resolver minha pensão hoje
                 <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-              </a>
+              </button>
             </div>
           </motion.div>
           <motion.div 
@@ -157,7 +156,7 @@ const PainPoints = () => (
 );
 
 const OfficePresentation = () => {
-  const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent("Olá, gostaria de saber mais sobre pensão alimentícia.")}`;
+  const openFunnel = useOpenFunnel();
 
   return (
     <section id="escritorio" className="py-24">
@@ -194,14 +193,13 @@ const OfficePresentation = () => {
             <p className="text-lg text-gray-600 mb-8 leading-relaxed">
               Não somos apenas advogados. Somos o seu suporte jurídico estratégico. No <strong>Help Pensão Alimentícia</strong>, entendemos que a fome e as necessidades do seu filho não esperam. Por isso, nossa prioridade é a rapidez e a eficiência.
             </p>
-            <a 
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => openFunnel('escritorio')}
               className="inline-flex items-center gap-2 text-brand-600 font-bold hover:gap-4 transition-all"
             >
               Conheça nossa forma de atuar <ChevronRight />
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -354,7 +352,7 @@ const FAQ = () => (
 );
 
 const CTASection = () => {
-  const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent("Olá, gostaria de saber mais sobre pensão alimentícia.")}`;
+  const openFunnel = useOpenFunnel();
 
   return (
     <section id="contato" className="py-24 bg-brand-50/30">
@@ -365,15 +363,14 @@ const CTASection = () => {
           Não espere mais. Cada dia sem a pensão correta é um prejuízo para o futuro do seu filho. O <strong>Help Pensão Alimentícia</strong> está pronto para te ajudar agora mesmo.
         </p>
         <div className="flex flex-col items-center gap-6">
-          <a 
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => openFunnel('cta_final')}
             className="bg-brand-600 hover:bg-brand-700 text-white px-12 py-6 rounded-2xl font-bold text-xl transition-all shadow-2xl shadow-brand-200 flex items-center gap-3 group"
           >
             Iniciar atendimento agora
             <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-          </a>
+          </button>
           <div className="flex flex-col sm:flex-row gap-6 text-brand-900 font-bold">
             <div className="flex items-center gap-2">
               <Lock className="text-brand-600" size={20} />
@@ -411,30 +408,15 @@ const Footer = () => (
   </footer>
 );
 
-export default function App() {
-  const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent("Olá, gostaria de saber mais sobre pensão alimentícia.")}`;
+// Botão flutuante: também leva ao quiz, não direto ao WhatsApp.
+const FloatingCta = () => {
+  const openFunnel = useOpenFunnel();
 
   return (
-    <div className="font-sans selection:bg-brand-200 selection:text-brand-900">
-      <Navbar />
-      <main>
-        <Hero />
-        <PainPoints />
-        <OfficePresentation />
-        <Services />
-        <SocialProof />
-        <HowItWorks />
-        <FAQ />
-        <CTASection />
-      </main>
-      <Footer />
-      
-      {/* Floating WhatsApp Button with Face */}
-      <div className="fixed bottom-8 right-8 z-50">
-        <motion.a 
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+    <div className="fixed bottom-8 right-8 z-50">
+        <motion.button
+          type="button"
+          onClick={() => openFunnel('flutuante')}
           initial={{ y: 0 }}
           animate={{ 
             y: [0, -20, 0],
@@ -471,8 +453,29 @@ export default function App() {
               <MessageCircle size={16} className="text-white" />
             </div>
           </div>
-        </motion.a>
-      </div>
+        </motion.button>
     </div>
+  );
+};
+
+export default function App() {
+  return (
+    <FunnelProvider>
+      <div className="font-sans selection:bg-brand-200 selection:text-brand-900">
+        <Navbar />
+        <main>
+          <Hero />
+          <PainPoints />
+          <OfficePresentation />
+          <Services />
+          <SocialProof />
+          <HowItWorks />
+          <FAQ />
+          <CTASection />
+        </main>
+        <Footer />
+        <FloatingCta />
+      </div>
+    </FunnelProvider>
   );
 }
