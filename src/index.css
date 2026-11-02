@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --color-marca-50: #f3f6fb;
+  --color-marca-100: #e3eaf5;
+  --color-marca-500: #3b5b8c;
+  --color-marca-600: #2c4772;
+  --color-marca-700: #22385b;
+  --color-marca-900: #131f33;
+  --color-ouro: #b48a3c;
+}
+
+@layer base {
+  body { @apply bg-slate-50 text-slate-900 antialiased; }
+  label { @apply text-sm font-medium text-slate-700; }
+}
+
+@layer components {
+  .input { @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-marca-500 focus:outline-none focus:ring-2 focus:ring-marca-100 disabled:bg-slate-100; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primario { @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 bg-marca-600 text-white hover:bg-marca-700; }
+  .btn-secundario { @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
+  .btn-perigo { @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 border border-red-200 bg-white text-red-700 hover:bg-red-50; }
+  .card { @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm; }
+  .tabela { @apply w-full text-left text-sm; }
+  .tabela th { @apply border-b border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500; }
+  .tabela td { @apply border-b border-slate-100 px-3 py-2 align-top; }
+}
