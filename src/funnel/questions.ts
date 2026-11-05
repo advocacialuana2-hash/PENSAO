@@ -30,7 +30,8 @@ export const QUESTIONS: Question[] = [
     summaryLabel: 'Momento',
     options: [
       { value: 'gravida', label: 'Estou grávida' },
-      { value: 'nasceu', label: 'Meu bebê já nasceu', hint: 'Há menos de 5 anos' },
+      { value: 'nasceu14', label: 'Meu bebê nasceu há até 14 dias' },
+      { value: 'nasceu5', label: 'Meu bebê nasceu há mais de 14 dias', hint: 'E tem menos de 5 anos' },
       { value: 'adocao', label: 'Adotei uma criança' },
       { value: 'mais5', label: 'Meu filho tem mais de 5 anos' },
     ],

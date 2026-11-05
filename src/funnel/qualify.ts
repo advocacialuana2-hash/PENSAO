@@ -3,7 +3,7 @@ import { BRAND_NAME } from './config';
 
 export type CaseType = 'desempregada' | 'contribuinte' | 'rural';
 export type Tier = 'quente' | 'morno' | 'frio';
-export type DisqualifyReason = 'prazo' | 'semVinculo' | 'empregada' | 'semQualidade' | 'jaRecebeu';
+export type DisqualifyReason = 'prazo' | 'prazoUrbana' | 'semVinculo' | 'empregada' | 'semQualidade' | 'jaRecebeu';
 
 export interface LeadContact {
   nome: string;
@@ -33,7 +33,7 @@ const CASE_CODES: Record<CaseType, string> = { desempregada: 'DE', contribuinte:
 const TIER_CODES: Record<Tier, string> = { quente: 'A', morno: 'B', frio: 'C' };
 
 const WEIGHTS: Partial<Record<QuestionId, Record<string, number>>> = {
-  momento: { nasceu: 30, gravida: 20, adocao: 20 },
+  momento: { nasceu14: 30, nasceu5: 30, gravida: 20, adocao: 20 },
   vinculo: { clt: 25, contribuinte: 20, rural: 20 },
   semContribuir: { contribuindo: 25, menos1: 25, '1a2': 10, '2a3': -10 },
   provasRurais: { sim: 25, algumas: 10 },
@@ -41,6 +41,12 @@ const WEIGHTS: Partial<Record<QuestionId, Record<string, number>>> = {
 };
 
 export const TIER_THRESHOLDS = { quente: 80, morno: 55 };
+
+// Critério do escritório: para segurada urbana, o pedido precisa sair até 14 dias após o parto.
+// Rural segue o prazo de 5 anos. Não é prazo legal (a prescrição é quinquenal para todas, art. 103).
+const URBAN_LINKS = ['clt', 'contribuinte'];
+export const URBAN_DEADLINE_DAYS = 14;
+const isUrban = (answers: Answers) => URBAN_LINKS.includes(answers.vinculo ?? '');
 
 export const visibleQuestions = (answers: Answers): Question[] =>
   QUESTIONS.filter((q) => !q.showIf || q.showIf(answers));
@@ -50,6 +56,7 @@ export const disqualification = (answers: Answers): DisqualifyReason | undefined
   if (answers.momento === 'mais5') return 'prazo';
   if (answers.vinculo === 'nenhum') return 'semVinculo';
   if (answers.vinculo === 'cltAtiva') return 'empregada';
+  if (answers.momento === 'nasceu5' && isUrban(answers)) return 'prazoUrbana';
   if (answers.semContribuir === 'mais3') return 'semQualidade';
   if (answers.pedidoInss === 'recebeu') return 'jaRecebeu';
   return undefined;
@@ -62,6 +69,13 @@ export function qualify(answers: Answers): QualifyResult {
 
   if (answers.momento === 'gravida') {
     flags.push('Gestante: requerimento possível a partir de 28 dias antes do parto (Lei 8.213/91, art. 71)');
+  }
+  const urgentUrban = answers.momento === 'nasceu14' && isUrban(answers);
+  if (urgentUrban) {
+    flags.push(`URGENTE: urbana com bebê de até ${URBAN_DEADLINE_DAYS} dias. Confirmar a data do parto e protocolar antes de completar ${URBAN_DEADLINE_DAYS} dias`);
+  }
+  if (answers.momento === 'gravida' && isUrban(answers)) {
+    flags.push(`Urbana gestante: combinar o requerimento para logo após o parto, dentro de ${URBAN_DEADLINE_DAYS} dias`);
   }
   if (answers.momento === 'adocao') {
     flags.push('Adoção ou guarda para adoção: conferir termo judicial (art. 71-A)');
@@ -88,8 +102,10 @@ export function qualify(answers: Answers): QualifyResult {
     if (value && weights) score += weights[value] ?? 0;
   }
 
-  const tier: Tier =
-    score >= TIER_THRESHOLDS.quente ? 'quente' : score >= TIER_THRESHOLDS.morno ? 'morno' : 'frio';
+  // Prazo curto da urbana vence a pontuação: esse lead vai sempre para o topo da fila.
+  const tier: Tier = urgentUrban
+    ? 'quente'
+    : score >= TIER_THRESHOLDS.quente ? 'quente' : score >= TIER_THRESHOLDS.morno ? 'morno' : 'frio';
   const disqualifyReason = disqualification(answers);
 
   return { qualified: !disqualifyReason, disqualifyReason, caseType, score, tier, flags };

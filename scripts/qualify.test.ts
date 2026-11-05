@@ -13,7 +13,7 @@ import {
 import { QUIZ_LENGTH } from '../src/funnel/questions';
 
 test('ex-empregada há menos de 1 ano, bebê nascido e sem pedido é lead quente', () => {
-  const r = qualify({ momento: 'nasceu', vinculo: 'clt', semContribuir: 'menos1', pedidoInss: 'naoPediu' });
+  const r = qualify({ momento: 'nasceu14', vinculo: 'clt', semContribuir: 'menos1', pedidoInss: 'naoPediu' });
   assert.equal(r.qualified, true);
   assert.equal(r.caseType, 'desempregada');
   assert.equal(r.tier, 'quente');
@@ -22,9 +22,9 @@ test('ex-empregada há menos de 1 ano, bebê nascido e sem pedido é lead quente
 
 test('barra cada caso inviável antes de pedir dados pessoais', () => {
   assert.equal(disqualification({ momento: 'mais5' }), 'prazo');
-  assert.equal(disqualification({ momento: 'nasceu', vinculo: 'nenhum' }), 'semVinculo');
+  assert.equal(disqualification({ momento: 'nasceu14', vinculo: 'nenhum' }), 'semVinculo');
   assert.equal(disqualification({ momento: 'gravida', vinculo: 'cltAtiva' }), 'empregada');
-  assert.equal(disqualification({ momento: 'nasceu', vinculo: 'clt', semContribuir: 'mais3' }), 'semQualidade');
+  assert.equal(disqualification({ momento: 'nasceu14', vinculo: 'clt', semContribuir: 'mais3' }), 'semQualidade');
   assert.equal(disqualification({ pedidoInss: 'recebeu' }), 'jaRecebeu');
 });
 
@@ -37,7 +37,7 @@ test('todo caminho que chega ao formulário tem exatamente QUIZ_LENGTH perguntas
 });
 
 test('indeferimento, período de graça e carência geram alertas para a equipe', () => {
-  const r = qualify({ momento: 'nasceu', vinculo: 'clt', semContribuir: '1a2', pedidoInss: 'negado' });
+  const r = qualify({ momento: 'nasceu14', vinculo: 'clt', semContribuir: '1a2', pedidoInss: 'negado' });
   assert.ok(r.flags.some((f) => f.includes('indeferimento')));
   assert.ok(r.flags.some((f) => /período de graça/i.test(f)));
   const ci = qualify({ momento: 'gravida', vinculo: 'contribuinte', semContribuir: 'contribuindo', pedidoInss: 'naoPediu' });
@@ -45,7 +45,7 @@ test('indeferimento, período de graça e carência geram alertas para a equipe'
 });
 
 test('rural sem documentos continua qualificada, com prioridade menor', () => {
-  const r = qualify({ momento: 'nasceu', vinculo: 'rural', provasRurais: 'nao', pedidoInss: 'naoPediu' });
+  const r = qualify({ momento: 'nasceu5', vinculo: 'rural', provasRurais: 'nao', pedidoInss: 'naoPediu' });
   assert.equal(r.qualified, true);
   assert.equal(r.caseType, 'rural');
   assert.notEqual(r.tier, 'quente');
@@ -63,9 +63,23 @@ test('resumo vai para a equipe e a primeira mensagem é do escritório, sem dado
   assert.doesNotMatch(opener + resumo, /quente|pontua|alerta/i);
 });
 
+test('urbana: até 14 dias do parto é urgente; depois disso é barrada. Rural segue até 5 anos', () => {
+  for (const vinculo of ['clt', 'contribuinte']) {
+    assert.equal(disqualification({ momento: 'nasceu5', vinculo }), 'prazoUrbana');
+    const r = qualify({ momento: 'nasceu14', vinculo, semContribuir: '2a3', pedidoInss: 'analise' });
+    assert.equal(r.qualified, true);
+    assert.equal(r.tier, 'quente');
+    assert.ok(r.flags.some((f) => f.startsWith('URGENTE') && f.includes('14 dias')));
+  }
+  assert.equal(disqualification({ momento: 'nasceu5', vinculo: 'rural', provasRurais: 'sim', pedidoInss: 'naoPediu' }), undefined);
+  assert.equal(disqualification({ momento: 'nasceu5', vinculo: 'cltAtiva' }), 'empregada');
+  const gestante = qualify({ momento: 'gravida', vinculo: 'clt', semContribuir: 'menos1', pedidoInss: 'naoPediu' });
+  assert.ok(gestante.flags.some((f) => f.includes('logo após o parto')));
+});
+
 test('relatório traz cliente, prioridade, alertas e documentos do perfil', () => {
   const contact = { nome: 'Joana Lima', whatsapp: '31991234567', cidade: 'Belo Horizonte', uf: 'MG' };
-  const answers = { momento: 'nasceu', vinculo: 'rural', provasRurais: 'algumas', pedidoInss: 'negado' };
+  const answers = { momento: 'nasceu5', vinculo: 'rural', provasRurais: 'algumas', pedidoInss: 'negado' };
   const result = qualify(answers);
   const report = buildLeadReport({ contact, answers, result, protocol: 'SM-RUA-TEST', createdAt: new Date('2026-10-27T15:00:00Z'), origin: 'MetaADS' });
   assert.match(report, /RELATÓRIO DE TRIAGEM — SM-RUA-TEST/);

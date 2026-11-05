@@ -24,6 +24,7 @@ A página não mostra o número do escritório. A cliente só conhece o número 
 | Resposta | Motivo |
 |---|---|
 | Filho com mais de 5 anos | Prescrição quinquenal das parcelas (Lei 8.213/91, art. 103, parágrafo único) |
+| Urbana (ex-CLT, MEI, autônoma ou carnê) com bebê de mais de 14 dias | Critério do escritório: chances mínimas depois de 14 dias do parto (ver abaixo) |
 | Nunca trabalhou registrada, nunca contribuiu e não é rural | Sem qualidade de segurada |
 | Ainda empregada de carteira | Pagamento cabe à empresa (art. 72, § 1º) |
 | Mais de 3 anos sem contribuir | Excede o período de graça máximo (art. 15, II e §§ 1º e 2º) |
@@ -62,6 +63,18 @@ O link `link_whatsapp_cliente` do webhook já abre a conversa com esta mensagem:
 Quando ela responder, a pessoa da equipe se apresenta pelo nome e confirma o resumo (campo `resumo`) antes de seguir.
 
 ### 3.2 Confirmação por perfil
+
+### Prazo de 14 dias da urbana (critério do escritório)
+
+| Perfil | Prazo para pedir depois do parto |
+|---|---|
+| Rural (segurada especial) | Até 5 anos |
+| Urbana (ex-CLT, MEI, autônoma ou carnê) | Até 14 dias. Depois disso, a cliente é barrada no teste |
+
+- Urbana com bebê de até 14 dias chega sempre como prioridade A, com alerta "URGENTE". Confirme a data exata do parto no primeiro contato e protocole antes de completar 14 dias.
+- Urbana gestante: combine o requerimento para logo após o parto.
+- Adoção não segue essa regra no teste. Se o escritório quiser aplicar os 14 dias também à adoção, é um ajuste de uma linha em `src/funnel/qualify.ts`.
+- Esse prazo é uma regra de triagem do escritório, não um prazo da lei: a prescrição de 5 anos (art. 103, parágrafo único) vale para todas as seguradas. Por isso a mensagem de recusa fala em "chances muito maiores nos primeiros 14 dias" e não diz que o direito acabou.
 
 **DE — Ex-empregada**
 1. Qual foi a data de saída do último emprego?
@@ -114,7 +127,7 @@ Acesso ao Meu INSS: cadastrar o advogado como procurador. Não pedir a senha gov
 
 1. Enviar pela plataforma de assinatura o contrato de honorários e a procuração, com selfie e documento como autenticação. A assinatura eletrônica aceita pelas partes é válida (MP 2.200-2/2001, art. 10, § 2º).
 2. Após a assinatura, gerar a cobrança conforme o modelo de honorários e protocolar o requerimento.
-3. Gestante: o pedido pode ser feito a partir de 28 dias antes do parto (Lei 8.213/91, art. 71). Agendar o retorno para essa data.
+3. Gestante: o pedido pode ser feito a partir de 28 dias antes do parto (Lei 8.213/91, art. 71). Agendar o retorno para essa data. Se for urbana, o pedido não pode passar de 14 dias depois do parto.
 
 > Pronto, {nome}! Contrato assinado. Agora preciso só de {documentos pendentes}. Assim que chegarem, fazemos o pedido e te avisamos por aqui.
 

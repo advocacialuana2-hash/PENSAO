@@ -528,6 +528,10 @@ const DISQUALIFIED_CONTENT: Record<DisqualifyReason, { title: string; text: stri
     title: 'O prazo para esse filho já passou.',
     text: 'O pedido do salário-maternidade tem prazo de 5 anos. Para filhos com mais de 5 anos, em regra, não é mais possível receber. Se você tiver outro filho mais novo, pode fazer a análise de novo.',
   },
+  prazoUrbana: {
+    title: 'Para o seu caso, o melhor momento já passou.',
+    text: 'Para quem trabalhou na cidade, com carteira assinada, como MEI ou pagando o carnê, as chances são muito maiores quando o pedido é feito nos primeiros 14 dias depois do parto. Como seu bebê nasceu há mais tempo, não conseguimos seguir com a análise por aqui. Se você trabalhou no campo, na pesca ou no extrativismo, mude a resposta.',
+  },
   semVinculo: {
     title: 'Por enquanto, o INSS não paga nesse caso.',
     text: 'O salário-maternidade é pago a quem trabalhou registrada, pagou o INSS ou trabalha no campo. Se você começar a pagar o INSS, pode ter direito numa próxima gravidez.',
