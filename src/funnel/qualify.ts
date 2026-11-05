@@ -1,7 +1,7 @@
 import { Answers, QUESTIONS, Question, QuestionId, optionLabel } from './questions';
 import { BRAND_NAME } from './config';
 
-export type CaseType = 'desempregada' | 'contribuinte' | 'rural';
+export type CaseType = 'desempregada' | 'contribuinte' | 'rural' | 'planejamento';
 export type Tier = 'quente' | 'morno' | 'frio';
 export type DisqualifyReason = 'prazo' | 'prazoUrbana' | 'semVinculo' | 'empregada' | 'semQualidade' | 'jaRecebeu';
 
@@ -26,17 +26,20 @@ export const CASE_LABELS: Record<CaseType, string> = {
   desempregada: 'Salário-maternidade: ex-empregada no período de graça',
   contribuinte: 'Salário-maternidade: contribuinte individual, MEI ou facultativa',
   rural: 'Salário-maternidade: segurada especial (rural)',
+  planejamento: 'Salário-maternidade: gestante sem contribuição (inscrição e pagamento antes do parto)',
 };
 
-const CASE_CODES: Record<CaseType, string> = { desempregada: 'DE', contribuinte: 'CI', rural: 'RU' };
+const CASE_CODES: Record<CaseType, string> = { desempregada: 'DE', contribuinte: 'CI', rural: 'RU', planejamento: 'PL' };
 
 const TIER_CODES: Record<Tier, string> = { quente: 'A', morno: 'B', frio: 'C' };
 
 const WEIGHTS: Partial<Record<QuestionId, Record<string, number>>> = {
   momento: { nasceu14: 30, nasceu5: 30, gravida: 20, adocao: 20 },
-  vinculo: { clt: 25, contribuinte: 20, rural: 20 },
+  vinculo: { clt: 25, contribuinte: 20, rural: 20, nenhum: 20 },
   semContribuir: { contribuindo: 25, menos1: 25, '1a2': 10, '2a3': -10 },
   provasRurais: { sim: 25, algumas: 10 },
+  gestacao: { '7mais': 30, '4a6': 20, ate3: 15 },
+  atividadeAtual: { naoTrabalha: 20, contaPropria: 15 },
   pedidoInss: { negado: 25, naoPediu: 20, analise: 10 },
 };
 
@@ -54,7 +57,8 @@ export const visibleQuestions = (answers: Answers): Question[] =>
 // Barra o lead assim que a resposta torna o pedido inviável, sem pedir dados pessoais.
 export const disqualification = (answers: Answers): DisqualifyReason | undefined => {
   if (answers.momento === 'mais5') return 'prazo';
-  if (answers.vinculo === 'nenhum') return 'semVinculo';
+  // Quem nunca contribuiu só tem caminho seguro antes do parto: pagar depois do nascimento não gera o direito.
+  if (answers.vinculo === 'nenhum' && answers.momento !== 'gravida') return 'semVinculo';
   if (answers.vinculo === 'cltAtiva') return 'empregada';
   if (answers.momento === 'nasceu5' && isUrban(answers)) return 'prazoUrbana';
   if (answers.semContribuir === 'mais3') return 'semQualidade';
@@ -64,7 +68,13 @@ export const disqualification = (answers: Answers): DisqualifyReason | undefined
 
 export function qualify(answers: Answers): QualifyResult {
   const caseType: CaseType =
-    answers.vinculo === 'rural' ? 'rural' : answers.vinculo === 'contribuinte' ? 'contribuinte' : 'desempregada';
+    answers.vinculo === 'rural'
+      ? 'rural'
+      : answers.vinculo === 'contribuinte'
+        ? 'contribuinte'
+        : answers.vinculo === 'nenhum'
+          ? 'planejamento'
+          : 'desempregada';
   const flags: string[] = [];
 
   if (answers.momento === 'gravida') {
@@ -76,6 +86,20 @@ export function qualify(answers: Answers): QualifyResult {
   }
   if (answers.momento === 'gravida' && isUrban(answers)) {
     flags.push(`Urbana gestante: combinar o requerimento para logo após o parto, dentro de ${URBAN_DEADLINE_DAYS} dias`);
+  }
+  const urgentPlanning = caseType === 'planejamento' && answers.gestacao === '7mais';
+  if (caseType === 'planejamento') {
+    flags.push('Nunca contribuiu: a inscrição e o primeiro pagamento precisam acontecer ANTES do parto. Pagamento depois do nascimento não gera o direito');
+    flags.push('Avaliar alíquota: 20%, 11% (plano simplificado) ou 5% (facultativa de baixa renda com CadÚnico), Lei 8.212/91, art. 21, § 2º');
+  }
+  if (urgentPlanning) {
+    flags.push('URGENTE: gestação de 7 meses ou mais. Emitir a guia e confirmar o pagamento nesta semana');
+  }
+  if (answers.atividadeAtual === 'naoTrabalha') {
+    flags.push('Sem atividade remunerada: inscrever como FACULTATIVA. Não usar código de contribuinte individual (risco de fraude, CP art. 171, § 3º)');
+  }
+  if (answers.atividadeAtual === 'contaPropria') {
+    flags.push('Trabalha por conta própria: pode contribuir como contribuinte individual. Registrar a atividade real (o que faz, desde quando)');
   }
   if (answers.momento === 'adocao') {
     flags.push('Adoção ou guarda para adoção: conferir termo judicial (art. 71-A)');
@@ -103,7 +127,7 @@ export function qualify(answers: Answers): QualifyResult {
   }
 
   // Prazo curto da urbana vence a pontuação: esse lead vai sempre para o topo da fila.
-  const tier: Tier = urgentUrban
+  const tier: Tier = urgentUrban || urgentPlanning
     ? 'quente'
     : score >= TIER_THRESHOLDS.quente ? 'quente' : score >= TIER_THRESHOLDS.morno ? 'morno' : 'frio';
   const disqualifyReason = disqualification(answers);
@@ -167,6 +191,12 @@ const DOCUMENTS: Record<CaseType, string[]> = {
     'Comprovante de residência',
     'Certidão de nascimento (ou ultrassom/atestado com data provável do parto)',
     'Autodeclaração rural e documentos do trabalho no campo',
+  ],
+  planejamento: [
+    'RG/CNH e CPF',
+    'Comprovante de residência',
+    'Ultrassom ou atestado com a data provável do parto',
+    'Folha resumo do CadÚnico, se for avaliar a alíquota de baixa renda',
   ],
 };
 

@@ -25,7 +25,7 @@ A página não mostra o número do escritório. A cliente só conhece o número 
 |---|---|
 | Filho com mais de 5 anos | Prescrição quinquenal das parcelas (Lei 8.213/91, art. 103, parágrafo único) |
 | Urbana (ex-CLT, MEI, autônoma ou carnê) com bebê de mais de 14 dias | Critério do escritório: chances mínimas depois de 14 dias do parto (ver abaixo) |
-| Nunca trabalhou registrada, nunca contribuiu e não é rural | Sem qualidade de segurada |
+| Nunca contribuiu, não é rural e o bebê já nasceu (ou é adoção) | Sem qualidade de segurada no parto. Pagar depois do nascimento não gera o direito. A cliente recebe a orientação de, numa próxima gravidez, se inscrever e pagar antes do parto |
 | Ainda empregada de carteira | Pagamento cabe à empresa (art. 72, § 1º) |
 | Mais de 3 anos sem contribuir | Excede o período de graça máximo (art. 15, II e §§ 1º e 2º) |
 | Já recebeu o benefício por esse filho | Benefício já concedido |
@@ -39,6 +39,7 @@ Formato: `SM-<PERFIL><PRIORIDADE>-<CÓDIGO>` — exemplo `SM-DEA-K7Q2`.
 | DE | Ex-empregada (CLT) | Período de graça: 12 meses, prorrogável por desemprego e por mais de 120 contribuições (art. 15) |
 | CI | Contribuinte individual, MEI ou facultativa | Carência de 10 contribuições (art. 25, III): conferir o entendimento atual após o julgamento das ADIs 2110 e 2111 pelo STF |
 | RU | Segurada especial (rural) | Atividade rural nos 10 meses anteriores ao parto, ainda que descontínua, com início de prova material (art. 25, III; Decreto 3.048/99, art. 93, § 2º). Valor de um salário mínimo (art. 39, parágrafo único) |
+| PL | Gestante que nunca contribuiu | Inscrição e primeiro pagamento ANTES do parto. Sem atividade remunerada, inscrever como facultativa; quem trabalha por conta própria pode contribuir como contribuinte individual. Carência dispensada após as ADIs 2110 e 2111 (confirmar a IN PRES/INSS 188/2025 e o Enunciado 19 do CRPS) |
 
 | Prioridade | Pontuação | Primeira resposta |
 |---|---|---|
@@ -88,6 +89,13 @@ Com o CNIS em mãos, conferir se o parto caiu dentro do período de graça. Demi
 1. Desde quando você paga o INSS? Paga como MEI, carnê ou autônoma?
 2. Pagou todos os meses? Algum atrasado?
 3. Qual a data do parto (ou a data prevista)?
+
+**PL — Gestante que nunca contribuiu**
+1. Qual a data provável do parto? (confira no ultrassom)
+2. Você tem alguma renda ou trabalho, mesmo informal? O que faz?
+3. Sua família está no CadÚnico? (para avaliar a alíquota de 5% de baixa renda)
+
+Orientação: inscrever e pagar a primeira guia o quanto antes, e guardar o comprovante. O pagamento precisa estar feito antes do parto; se o bebê nascer antes do pagamento, o caminho deixa de ser seguro. Quem não trabalha contribui como facultativa; nunca use o código de contribuinte individual para quem não tem atividade real (CP, art. 171, § 3º).
 
 **RU — Rural**
 1. Que trabalho você faz no campo, na pesca ou no extrativismo? Desde quando?

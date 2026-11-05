@@ -534,7 +534,7 @@ const DISQUALIFIED_CONTENT: Record<DisqualifyReason, { title: string; text: stri
   },
   semVinculo: {
     title: 'Por enquanto, o INSS não paga nesse caso.',
-    text: 'O salário-maternidade é pago a quem trabalhou registrada, pagou o INSS ou trabalha no campo. Se você começar a pagar o INSS, pode ter direito numa próxima gravidez.',
+    text: 'Para quem nunca pagou o INSS, o pagamento precisa ser feito antes do parto. Como seu bebê já nasceu, não é possível por esse caminho. Numa próxima gravidez, procure orientação logo no começo para se inscrever e pagar o INSS antes do nascimento.',
   },
   empregada: {
     title: 'Quem paga é a sua empresa.',

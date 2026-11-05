@@ -34,6 +34,7 @@ test('todo caminho que chega ao formulário tem exatamente QUIZ_LENGTH perguntas
   assert.deepEqual(ids({ vinculo: 'clt' }), ['momento', 'vinculo', 'semContribuir', 'pedidoInss']);
   assert.deepEqual(ids({ vinculo: 'contribuinte' }), ['momento', 'vinculo', 'semContribuir', 'pedidoInss']);
   assert.deepEqual(ids({ vinculo: 'rural' }), ['momento', 'vinculo', 'provasRurais', 'pedidoInss']);
+  assert.deepEqual(ids({ momento: 'gravida', vinculo: 'nenhum' }), ['momento', 'vinculo', 'gestacao', 'atividadeAtual']);
 });
 
 test('indeferimento, período de graça e carência geram alertas para a equipe', () => {
@@ -75,6 +76,22 @@ test('urbana: até 14 dias do parto é urgente; depois disso é barrada. Rural s
   assert.equal(disqualification({ momento: 'nasceu5', vinculo: 'cltAtiva' }), 'empregada');
   const gestante = qualify({ momento: 'gravida', vinculo: 'clt', semContribuir: 'menos1', pedidoInss: 'naoPediu' });
   assert.ok(gestante.flags.some((f) => f.includes('logo após o parto')));
+});
+
+test('nunca contribuiu: grávida segue com orientação de pagar antes do parto; bebê nascido é barrado', () => {
+  for (const momento of ['nasceu14', 'nasceu5', 'adocao']) {
+    assert.equal(disqualification({ momento, vinculo: 'nenhum' }), 'semVinculo');
+  }
+  const r = qualify({ momento: 'gravida', vinculo: 'nenhum', gestacao: '7mais', atividadeAtual: 'naoTrabalha' });
+  assert.equal(r.qualified, true);
+  assert.equal(r.caseType, 'planejamento');
+  assert.equal(r.tier, 'quente');
+  assert.match(buildProtocol(r, () => 0), /^SM-PLA-AAAA$/);
+  assert.ok(r.flags.some((f) => f.includes('ANTES do parto')));
+  assert.ok(r.flags.some((f) => f.includes('FACULTATIVA')));
+  const inicio = qualify({ momento: 'gravida', vinculo: 'nenhum', gestacao: 'ate3', atividadeAtual: 'contaPropria' });
+  assert.equal(inicio.tier, 'morno');
+  assert.ok(inicio.flags.some((f) => f.includes('contribuinte individual')));
 });
 
 test('relatório traz cliente, prioridade, alertas e documentos do perfil', () => {

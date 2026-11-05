@@ -1,5 +1,12 @@
-// Sempre 4 perguntas por caminho: momento, vínculo, uma pergunta do perfil e pedido no INSS.
-export type QuestionId = 'momento' | 'vinculo' | 'semContribuir' | 'provasRurais' | 'pedidoInss';
+// Sempre 4 perguntas por caminho: momento, vínculo e duas perguntas do perfil.
+export type QuestionId =
+  | 'momento'
+  | 'vinculo'
+  | 'semContribuir'
+  | 'provasRurais'
+  | 'gestacao'
+  | 'atividadeAtual'
+  | 'pedidoInss';
 
 export const QUIZ_LENGTH = 4;
 
@@ -22,6 +29,8 @@ export interface Question {
 }
 
 const is = (id: QuestionId, ...values: string[]) => (a: Answers) => values.includes(a[id] ?? '');
+// Grávida que nunca contribuiu: caminho de inscrição e pagamento antes do parto.
+const neverPaidPregnant = (a: Answers) => a.vinculo === 'nenhum' && a.momento === 'gravida';
 
 export const QUESTIONS: Question[] = [
   {
@@ -76,9 +85,31 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
+    id: 'gestacao',
+    title: 'De quantos meses você está?',
+    summaryLabel: 'Gestação',
+    showIf: neverPaidPregnant,
+    options: [
+      { value: 'ate3', label: 'Até 3 meses' },
+      { value: '4a6', label: 'De 4 a 6 meses' },
+      { value: '7mais', label: '7 meses ou mais' },
+    ],
+  },
+  {
+    id: 'atividadeAtual',
+    title: 'Você trabalha hoje?',
+    summaryLabel: 'Trabalho atual',
+    showIf: neverPaidPregnant,
+    options: [
+      { value: 'naoTrabalha', label: 'Não trabalho fora', hint: 'Cuido da casa, estudo ou estou desempregada' },
+      { value: 'contaPropria', label: 'Trabalho por conta própria', hint: 'Sem pagar o INSS' },
+    ],
+  },
+  {
     id: 'pedidoInss',
     title: 'Você já pediu o salário-maternidade no INSS?',
     summaryLabel: 'Pedido no INSS',
+    showIf: (a) => a.vinculo !== 'nenhum',
     options: [
       { value: 'naoPediu', label: 'Ainda não pedi' },
       { value: 'negado', label: 'Pedi e foi negado' },
