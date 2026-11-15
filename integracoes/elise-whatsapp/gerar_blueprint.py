@@ -11,7 +11,8 @@ from pathlib import Path
 
 AQUI = Path(__file__).parent
 DOC_PROMPT_ID = "18has88qkJLGegEvRPn0C1F4s-GJs2kUc3AOC2K7dbsI"
-PLANILHA_ID = "1LJ4LehuDw-T95WKJrrkAwnHaSaybsdNhGRCMQzdyDIk"
+PLANILHA_ID = "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo"
+CALENDARIO = "primary"  # agenda principal da conta Google conectada
 ABA = "Conversas"
 MODELO = "claude-sonnet-5-5"
 FUSO = "America/Campo_Grande"  # Naviraí/MS
@@ -194,9 +195,75 @@ rota_fora = [{
     ],
 }]
 
+ASAAS_CONN = 11902246  # conexão Asaas já existente no Make
+IGNORAR = lambda mid: [{"id": mid, "module": "builtin:Ignore", "version": 1, "mapper": None,
+                        "metadata": {"designer": {"x": _pos["x"], "y": 300}}}]
+
+# --- CPF: o da planilha (coluna K) ou um CPF digitado na última mensagem
+CAND = "replace(3.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\")"
+DIG = f"replace({CAND}; /\\D/g; \"\")"
+CPF_EXPR = f"{{{{ifempty(4.`10`; if(length({DIG}) = 11; if(length({CAND}) <= 14; {DIG}; \"\"); \"\"))}}}}"
+
+def asaas_get(mid, url, filtro=None):
+    m = {"id": mid, "module": "asaas:apiCall", "version": 1,
+         "parameters": {"__IMTCONN__": ASAAS_CONN},
+         "mapper": {"url": url, "method": "GET", "headers": [{"key": "Content-Type", "value": "application/json"}]},
+         "metadata": meta(), "onerror": IGNORAR(mid + 100)}
+    if filtro:
+        m["filter"] = filtro
+    return m
+
+def lista(mod, campo):
+    return f"{{{{ifempty(join(map({mod}.body.data; \"{campo}\"); \"; \"); \"nenhuma\")}}}}"
+
+ASAAS_TXT = ("Cadastro: {{52.body.data[1].name}}\n"
+             "VENCIDAS: vencimentos: " + lista(53, "dueDate") + " | valores: " + lista(53, "value")
+             + " | links: " + lista(53, "invoiceUrl") + "\n"
+             "A VENCER: vencimentos: " + lista(57, "dueDate") + " | valores: " + lista(57, "value")
+             + " | links: " + lista(57, "invoiceUrl"))
+
+rota_asaas = [
+    asaas_get(52, "/v3/customers?cpfCnpj={{50.cpf}}",
+              {"name": "CPF disponível", "conditions": [[cond("{{50.cpf}}", "exist")]]}),
+    {"id": 56, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"scope": "roundtrip", "variables": [{"name": "asaas_txt", "value": "cliente não encontrado"}]}},
+    asaas_get(53, "/v3/payments?customer={{52.body.data[1].id}}&status=OVERDUE&limit=10",
+              {"name": "Cliente encontrado", "conditions": [[cond("{{52.body.data[1].id}}", "exist")]]}),
+    asaas_get(57, "/v3/payments?customer={{52.body.data[1].id}}&status=PENDING&limit=10"),
+    {"id": 58, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"scope": "roundtrip", "variables": [
+         {"name": "asaas_txt", "value": ASAAS_TXT},
+         {"name": "cpf_valido", "value": "{{50.cpf}}"}]}},
+]
+
+def cal_call(mid, url, body, filtro=None):
+    m = {"id": mid, "module": "google-calendar:makeApiCall", "version": 5, "parameters": {},
+         "mapper": {"url": url, "method": "POST",
+                    "headers": [{"key": "Content-Type", "value": "application/json"}], "body": body},
+         "metadata": meta(), "onerror": IGNORAR(mid + 100)}
+    if filtro:
+        m["filter"] = filtro
+    return m
+
+ISO = lambda expr: f"{{{{formatDate({expr}; \"YYYY-MM-DDTHH:mm:ssZ\")}}}}"
+rota_agenda = [
+    cal_call(60, "/v3/freeBusy",
+             "{\"timeMin\": \"" + ISO("now") + "\", \"timeMax\": \"" + ISO("addDays(now; 14)")
+             + f"\", \"timeZone\": \"{FUSO}\", \"items\": [{{\"id\": \"{CALENDARIO}\"}}]}}",
+             {"name": "Caso aceito pela Dra. Luana", "conditions": [[cond("{{4.`9`}}", "text:equal:ci", "SIM")]]}),
+    {"id": 61, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"scope": "roundtrip", "variables": [{"name": "agenda_txt", "value":
+         f"inícios: {{{{ifempty(join(map(60.body.calendars.{CALENDARIO}.busy; \"start\"); \"; \"); \"nenhum período ocupado\")}}}}\n"
+         f"fins: {{{{join(map(60.body.calendars.{CALENDARIO}.busy; \"end\"); \"; \")}}}}"}]}},
+]
+
 CONVERSA = ("CONVERSA\nPerfil: {{3.nome}}\n"
             f"Agora: {{{{formatDate(now; \"dddd, DD/MM/YYYY HH:mm\"; \"{FUSO}\")}}}}\n"
-            "Histórico (a última linha é a mensagem a responder):\n{{5.hist_cliente}}")
+            "Histórico (a última linha é a mensagem a responder):\n{{5.hist_cliente}}\n\n"
+            "DADOS DO SISTEMA\n"
+            "caso_aceito: {{ifempty(4.`9`; \"NAO\")}}\n"
+            "AGENDA (períodos ocupados): {{ifempty(62.agenda_txt; \"não consultada (caso não aceito)\")}}\n"
+            "ASAAS: {{ifempty(62.asaas_txt; \"CPF não informado\")}}")
 
 corpo_api = (
     "{\"model\": " + json.dumps(MODELO) + ", \"max_tokens\": 1024, "
@@ -205,82 +272,121 @@ corpo_api = (
 )
 
 R = "41.body.content[1].text"
-rota_elise = [
-    {
-        "id": 38, "module": "google-drive:makeApiCall", "version": 4, "parameters": {},
-        "mapper": {"url": f"/v3/files/{DOC_PROMPT_ID}/export", "method": "GET",
-                   "qs": [{"key": "mimeType", "value": "text/plain"}], "headers": []},
-        "metadata": meta(),
-        "filter": {"name": "Dentro do horário e Elise ativa", "conditions": DENTRO},
-    },
-    {
-        "id": 39, "module": "json:TransformToJSON", "version": 1,
-        "parameters": {"space": ""}, "mapper": {"object": "{{38.body}}"}, "metadata": meta(),
-    },
-    {
-        "id": 40, "module": "json:TransformToJSON", "version": 1,
-        "parameters": {"space": ""}, "mapper": {"object": CONVERSA}, "metadata": meta(),
-    },
-    {
-        "id": 41, "module": "anthropic-claude:makeAnApiCall", "version": 1,
-        "parameters": {},
-        "mapper": {
-            "url": "/v1/messages",
-            "method": "POST",
-            "headers": [
-                {"key": "anthropic-version", "value": "2023-06-01"},
-                {"key": "content-type", "value": "application/json"},
-            ],
-            "body": corpo_api,
-        },
-        "metadata": meta(),
-        "onerror": [{"id": 49, "module": "builtin:Ignore", "version": 1, "mapper": None,
-                     "metadata": {"designer": {"x": _pos["x"], "y": 300}}}],
-    },
-    {
-        "id": 42, "module": "util:SetVariables", "version": 1, "parameters": {},
-        "mapper": {
-            "scope": "roundtrip",
-            "variables": [
-                {"name": "resposta",
-                 "value": f"{{{{trim(replace({R}; /<<ENCAMINHAR:[\\s\\S]*?>>/g; \"\"))}}}}"},
-                {"name": "encaminhar",
-                 "value": f"{{{{if(contains({R}; \"<<ENCAMINHAR\"); \"SIM\"; \"NAO\")}}}}"},
-                {"name": "motivo",
-                 "value": (f"{{{{if(contains({R}; \"<<ENCAMINHAR\"); "
-                           f"trim(replace(replace({R}; /^[\\s\\S]*<<ENCAMINHAR:/; \"\"); />>[\\s\\S]*$/; \"\")); \"\")}}}}")},
-            ],
-        },
-        "metadata": meta(),
-    },
-    {
-        "id": 43, "module": "whatsapp-business-cloud:sendMessage", "version": 1,
-        "parameters": {},
-        "mapper": {
-            "to": "{{3.wa_id}}",
-            "type": "text",
-            "text": {"body": "{{42.resposta}}", "preview_url": False},
-        },
-        "metadata": meta(),
-        "filter": {"name": "Há resposta", "conditions": [[cond("{{42.resposta}}", "exist")]]},
-    },
-    {
-        "id": 44, "module": "util:SetVariables", "version": 1, "parameters": {},
-        "mapper": {"scope": "roundtrip", "variables": [
-            {"name": "hist_full", "value": "{{5.hist_cliente}}\nElise: {{42.resposta}}"}]},
-        "metadata": meta(),
-    },
+def marcador(nome):
+    return (f"{{{{if(contains({R}; \"<<{nome}\"); "
+            f"trim(replace(replace({R}; /^[\\s\\S]*<<{nome}:/; \"\"); />>[\\s\\S]*$/; \"\")); \"\")}}}}")
+
+INI = "trim(first(split(42.reservar; \"|\")))"
+MODO = "lower(trim(last(split(42.reservar; \"|\"))))"
+INI_DATA = f"parseDate({INI}; \"YYYY-MM-DDTHH:mm\"; \"{FUSO}\")"
+NOME_SEGURO = "replace(3.nome; /[\"\\\\]/g; \"\")"
+
+def evento(online):
+    """Corpo JSON do evento. Expressões {{...}} usam aspas simples do Python para conter aspas do Make."""
+    modo = "online" if online else "presencial"
+    fim = '{{formatDate(addHours(' + INI_DATA + '; 1); "YYYY-MM-DDTHH:mm:ss"; "' + FUSO + '")}}'
+    conf = (', "conferenceData": {"createRequest": {"requestId": "elise-{{3.wa_id}}-{{formatDate(now; "X")}}", '
+            '"conferenceSolutionKey": {"type": "hangoutsMeet"}}}') if online else ''
+    return ('{"summary": "A CONFIRMAR - Consulta ' + modo + ' - {{' + NOME_SEGURO + '}}", "colorId": "5", '
+            '"description": "Reserva feita pela Elise (WhatsApp). Cliente: {{' + NOME_SEGURO + '}} | WhatsApp: +{{3.wa_id}}. '
+            'Confirme com o cliente e depois retire o A CONFIRMAR do título.", '
+            '"start": {"dateTime": "{{' + INI + '}}:00", "timeZone": "' + FUSO + '"}, '
+            '"end": {"dateTime": "' + fim + '", "timeZone": "' + FUSO + '"}' + conf + '}')
+
+LIVRE = cond(f"{{{{length(72.body.calendars.{CALENDARIO}.busy)}}}}", "number:equal", "0")
+rota_reserva = [
+    {"id": 71, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "filter": {"name": "Cliente escolheu horário", "conditions": [[cond("{{42.reservar}}", "exist")]]},
+     "mapper": {"scope": "roundtrip", "variables": [{"name": "reserva_txt", "value":
+         f"NÃO RESERVADO: o horário escolhido ({{{{{INI}}}}}, {{{{{MODO}}}}}) estava ocupado ou inválido na reconferência. Oferecer outra opção ao cliente."}]}},
+    cal_call(72, "/v3/freeBusy",
+             "{\"timeMin\": \"" + ISO(INI_DATA) + "\", \"timeMax\": \"" + ISO(f"addHours({INI_DATA}; 1)")
+             + f"\", \"timeZone\": \"{FUSO}\", \"items\": [{{\"id\": \"{CALENDARIO}\"}}]}}"),
+    {"id": 73, "module": "builtin:BasicRouter", "version": 1, "mapper": None, "metadata": meta(), "routes": [
+        {"flow": [
+            cal_call(74, f"/v3/calendars/{CALENDARIO}/events?conferenceDataVersion=1", evento(True),
+                     {"name": "Livre e on-line", "conditions": [[LIVRE, cond(f"{{{{{MODO}}}}}", "text:contain", "on")]]}),
+            {"id": 75, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+             "mapper": {"scope": "roundtrip", "variables": [{"name": "reserva_txt", "value":
+                 f"Reserva A CONFIRMAR criada: {{{{{INI}}}}} (on-line). Meet: {{{{74.body.hangoutLink}}}}"}]}},
+        ]},
+        {"flow": [
+            cal_call(76, f"/v3/calendars/{CALENDARIO}/events", evento(False),
+                     {"name": "Livre e presencial", "conditions": [[LIVRE, cond(f"{{{{{MODO}}}}}", "text:notcontain", "on")]]}),
+            {"id": 77, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+             "mapper": {"scope": "roundtrip", "variables": [{"name": "reserva_txt", "value":
+                 f"Reserva A CONFIRMAR criada: {{{{{INI}}}}} (presencial)."}]}},
+        ]},
+    ]},
+]
+
+TEM_RESERVA = "length(78.reserva_txt) > 0"
+rota_gravar = [
+    {"id": 78, "module": "util:GetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"variables": ["reserva_txt"]}},
     upsert(45, 46, 47, LINHA, {
         "0": "{{3.wa_id}}",
         "1": "{{3.nome}}",
         "2": hist_aparado("44.hist_full"),
-        "4": "{{if(42.encaminhar = \"SIM\"; \"SIM\"; ifempty(4.`4`; \"NAO\"))}}",
-        "5": "{{if(42.encaminhar = \"SIM\"; 42.motivo; 4.`5`)}}",
-        "6": "{{if(42.encaminhar = \"SIM\"; " + AGORA_ISO[2:-2] + "; 4.`6`)}}",
+        "4": f"{{{{if({TEM_RESERVA}; \"SIM\"; if(42.encaminhar = \"SIM\"; \"SIM\"; ifempty(4.`4`; \"NAO\")))}}}}",
+        "5": f"{{{{if({TEM_RESERVA}; 78.reserva_txt; if(42.encaminhar = \"SIM\"; 42.motivo; 4.`5`))}}}}",
+        "6": f"{{{{if({TEM_RESERVA}; {AGORA_ISO[2:-2]}; if(42.encaminhar = \"SIM\"; {AGORA_ISO[2:-2]}; 4.`6`))}}}}",
         "7": "NAO",
         "8": AGORA_ISO,
+        "10": "{{ifempty(62.cpf_valido; 4.`10`)}}",
+        "11": "{{if(contains(78.reserva_txt; \"criada\"); 78.reserva_txt; 4.`11`)}}",
     }),
 ]
+
+rota_principal = [
+    {"id": 62, "module": "util:GetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"variables": ["asaas_txt", "agenda_txt", "cpf_valido"]}},
+    {"id": 38, "module": "google-drive:makeApiCall", "version": 4, "parameters": {},
+     "mapper": {"url": f"/v3/files/{DOC_PROMPT_ID}/export", "method": "GET",
+                "qs": [{"key": "mimeType", "value": "text/plain"}], "headers": []},
+     "metadata": meta(), "onerror": IGNORAR(138)},
+    {"id": 39, "module": "json:TransformToJSON", "version": 1,
+     "parameters": {"space": ""}, "mapper": {"object": "{{38.body}}"}, "metadata": meta()},
+    {"id": 40, "module": "json:TransformToJSON", "version": 1,
+     "parameters": {"space": ""}, "mapper": {"object": CONVERSA}, "metadata": meta()},
+    {"id": 41, "module": "anthropic-claude:makeAnApiCall", "version": 1, "parameters": {},
+     "mapper": {"url": "/v1/messages", "method": "POST",
+                "headers": [{"key": "anthropic-version", "value": "2023-06-01"},
+                            {"key": "content-type", "value": "application/json"}],
+                "body": corpo_api},
+     "metadata": meta(), "onerror": IGNORAR(49)},
+    {"id": 42, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"scope": "roundtrip", "variables": [
+         {"name": "resposta", "value":
+             f"{{{{trim(replace(replace({R}; /<<ENCAMINHAR:[\\s\\S]*?>>/g; \"\"); /<<RESERVAR:[\\s\\S]*?>>/g; \"\"))}}}}"},
+         {"name": "encaminhar", "value": f"{{{{if(contains({R}; \"<<ENCAMINHAR\"); \"SIM\"; \"NAO\")}}}}"},
+         {"name": "motivo", "value": marcador("ENCAMINHAR")},
+         {"name": "reservar", "value": marcador("RESERVAR")},
+     ]}},
+    {"id": 43, "module": "whatsapp-business-cloud:sendMessage", "version": 1, "parameters": {},
+     "mapper": {"to": "{{3.wa_id}}", "type": "text", "text": {"body": "{{42.resposta}}", "preview_url": False}},
+     "metadata": meta(),
+     "filter": {"name": "Há resposta", "conditions": [[cond("{{42.resposta}}", "exist")]]}},
+    {"id": 44, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"scope": "roundtrip", "variables": [
+         {"name": "hist_full", "value": "{{5.hist_cliente}}\nElise: {{42.resposta}}"}]}},
+    {"id": 70, "module": "builtin:BasicRouter", "version": 1, "mapper": None, "metadata": meta(), "routes": [
+        {"flow": rota_reserva},
+        {"flow": rota_gravar},
+    ]},
+]
+
+rota_elise = [
+    {"id": 50, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "filter": {"name": "Dentro do horário e Elise ativa", "conditions": DENTRO},
+     "mapper": {"scope": "roundtrip", "variables": [{"name": "cpf", "value": CPF_EXPR}]}},
+    {"id": 51, "module": "builtin:BasicRouter", "version": 1, "mapper": None, "metadata": meta(), "routes": [
+        {"flow": rota_asaas},
+        {"flow": rota_agenda},
+        {"flow": rota_principal},
+    ]},
+]
+
 
 rota_cliente = [
     variaveis_entrada,
