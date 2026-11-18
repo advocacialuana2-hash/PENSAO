@@ -161,7 +161,7 @@ historico_cliente = {
     "mapper": {
         "scope": "roundtrip",
         "variables": [
-            {"name": "hist_cliente", "value": COL(2) + "\nCliente: {{3.texto}}"},
+            {"name": "hist_cliente", "value": COL(2) + "\nCliente: {{14.texto}}"},
         ],
     },
     "metadata": meta(),
@@ -200,7 +200,7 @@ IGNORAR = lambda mid: [{"id": mid, "module": "builtin:Ignore", "version": 1, "ma
                         "metadata": {"designer": {"x": _pos["x"], "y": 300}}}]
 
 # --- CPF: o da planilha (coluna K) ou um CPF digitado na última mensagem
-CAND = "replace(3.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\")"
+CAND = "replace(14.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\")"
 DIG = f"replace({CAND}; /\\D/g; \"\")"
 CPF_EXPR = f"{{{{ifempty(4.`10`; if(length({DIG}) = 11; if(length({CAND}) <= 14; {DIG}; \"\"); \"\"))}}}}"
 
@@ -268,7 +268,7 @@ CONVERSA = ("CONVERSA\nPerfil: {{3.nome}}\n"
 corpo_api = (
     "{\"model\": " + json.dumps(MODELO) + ", \"max_tokens\": 1024, "
     "\"system\": [{\"type\": \"text\", \"text\": {{39.json}} , \"cache_control\": {\"type\": \"ephemeral\", \"ttl\": \"1h\"}}], "
-    "\"messages\": [{\"role\": \"user\", \"content\": {{40.json}} }]}"
+    "\"messages\": [{\"role\": \"user\", \"content\": [{{13.midia_bloco}} {\"type\": \"text\", \"text\": {{40.json}} }]}]}"
 )
 
 R = "41.body.content[1].text"
@@ -388,8 +388,58 @@ rota_elise = [
 ]
 
 
-rota_cliente = [
-    variaveis_entrada,
+GEMINI_MODELO = "gemini-flash-lite-latest"  # transcrição de áudio (mais barato por minuto)
+TIPO = "1.value.messages[1].type"
+PROMPT_TRANSCRICAO = ("Transcreva este áudio em português do Brasil, palavra por palavra, sem resumir, "
+                      "sem comentar e sem acrescentar nada. Marque trechos que não dá para entender como [inaudível]. "
+                      "Responda apenas com a transcrição.")
+
+def baixar_midia(mid, id_expr, filtro):
+    return {"id": mid, "module": "whatsapp-business-cloud:getMedia", "version": 1, "parameters": {},
+            "mapper": {"mediaId": id_expr}, "metadata": meta(), "filter": filtro,
+            "onerror": IGNORAR(mid + 100)}
+
+rota_audio = [
+    baixar_midia(8, "{{1.value.messages[1].audio.id}}",
+                 {"name": "Áudio", "conditions": [[cond("{{" + TIPO + "}}", "text:equal", "audio")]]}),
+    {"id": 9, "module": "gemini-ai:makeApiCall", "version": 1, "parameters": {},
+     "mapper": {"url": f"/v1beta/models/{GEMINI_MODELO}:generateContent", "method": "POST",
+                "headers": [{"key": "Content-Type", "value": "application/json"}],
+                "body": ('{"contents": [{"parts": [{"inline_data": {"mime_type": "{{trim(first(split(8.mime_type; ";")))}}", '
+                         '"data": "{{toString(8.mediaData; "base64")}}"}}, {"text": ' + json.dumps(PROMPT_TRANSCRICAO, ensure_ascii=False)
+                         + '}]}], "generationConfig": {"temperature": 0}}')},
+     "metadata": meta(), "onerror": IGNORAR(109),
+     "filter": {"name": "Até 15 MB", "conditions": [[cond("{{8.file_size}}", "number:less", "15000000")]]}},
+    {"id": 10, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"scope": "roundtrip", "variables": [{"name": "midia_texto", "value":
+         "[áudio transcrito] {{trim(9.body.candidates[1].content.parts[1].text)}}"}]},
+     "filter": {"name": "Transcrição obtida", "conditions": [[cond("{{9.body.candidates[1].content.parts[1].text}}", "exist")]]}},
+]
+
+E_PDF = cond("{{1.value.messages[1].document.mime_type}}", "text:equal:ci", "application/pdf")
+rota_anexo = [
+    baixar_midia(11, "{{ifempty(1.value.messages[1].image.id; 1.value.messages[1].document.id)}}",
+                 {"name": "Imagem ou PDF", "conditions": [
+                     [cond("{{" + TIPO + "}}", "text:equal", "image")],
+                     [cond("{{" + TIPO + "}}", "text:equal", "document"), E_PDF]]}),
+    {"id": 12, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "filter": {"name": "Até 4,5 MB", "conditions": [[cond("{{11.file_size}}", "number:less", "4500000")]]},
+     "mapper": {"scope": "roundtrip", "variables": [
+         {"name": "midia_bloco", "value":
+             '{"type": "{{if(' + TIPO + ' = "image"; "image"; "document")}}", "source": {"type": "base64", '
+             '"media_type": "{{trim(first(split(11.mime_type; ";")))}}", "data": "{{toString(11.mediaData; "base64")}}"}},'},
+         {"name": "midia_texto", "value":
+             '{{if(' + TIPO + ' = "image"; "[imagem enviada, anexada a esta mensagem]"; "[PDF enviado, anexado a esta mensagem]")}} '
+             '{{1.value.messages[1].document.filename}} '
+             '{{ifempty(1.value.messages[1].image.caption; 1.value.messages[1].document.caption)}}'},
+     ]}},
+]
+
+rota_seguir = [
+    {"id": 13, "module": "util:GetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"variables": ["midia_texto", "midia_bloco"]}},
+    {"id": 14, "module": "util:SetVariables", "version": 1, "parameters": {}, "metadata": meta(),
+     "mapper": {"scope": "roundtrip", "variables": [{"name": "texto", "value": "{{ifempty(13.midia_texto; 3.texto)}}"}]}},
     buscar_linha(4, "{{3.wa_id}}"),
     historico_cliente,
     {
@@ -400,6 +450,15 @@ rota_cliente = [
             {"flow": rota_elise},
         ],
     },
+]
+
+rota_cliente = [
+    variaveis_entrada,
+    {"id": 7, "module": "builtin:BasicRouter", "version": 1, "mapper": None, "metadata": meta(), "routes": [
+        {"flow": rota_audio},
+        {"flow": rota_anexo},
+        {"flow": rota_seguir},
+    ]},
 ]
 
 blueprint = {

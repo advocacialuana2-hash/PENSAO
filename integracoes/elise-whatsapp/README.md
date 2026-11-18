@@ -21,27 +21,29 @@ Quando uma mensagem chega, a Elise responde na hora pela API oficial do WhatsApp
 5. **Falha do Claude:** o cenário não envia nada e a mensagem fica para a rodada interna.
 6. **Asaas:** quando o cliente informa o CPF (ou ele já está na coluna K), o cenário consulta no Asaas o cadastro e as cobranças vencidas e a vencer, usando a conexão Asaas que já existe no Make. A Elise informa vencimento, valor e link exatamente como estão no Asaas. Ela não calcula juros, não dá desconto e não confirma pagamento nem baixa. O CPF só é gravado na planilha se o Asaas encontrar o cadastro.
 7. **Agenda:** só funciona quando a Dra. Luana marca **SIM** na coluna J (`caso_aceito`). Nesse caso o cenário lê os horários ocupados da agenda principal do Google nos próximos 14 dias, e a Elise oferece duas opções de segunda a sexta, entre 13h e 18h, com consulta de 1 hora (Parte IV). Quando o cliente escolhe, o cenário confere de novo se o horário continua livre e cria no Google Agenda um evento amarelo **"A CONFIRMAR - Consulta ..."**, com link do Meet se a consulta for on-line. A conversa entra na fila (encaminhar = SIM), com a reserva descrita. A Elise diz ao cliente que vai confirmar; ela nunca confirma sozinha.
-8. **Confirmar uma reserva:** no Google Agenda, retire o "A CONFIRMAR" do título e mande a confirmação ao cliente pelo app, com o link do Meet se for on-line. Responder pelo app pausa a Elise por 12 horas naquela conversa. Para recusar, apague o evento e responda ao cliente.
+8. **Áudio:** o cenário baixa o áudio do WhatsApp e o Google Gemini (modelo `gemini-flash-lite-latest`) transcreve. O texto entra como `[áudio transcrito] ...` e segue o fluxo normal. Se a transcrição falhar, a Elise recebe `[mídia: audio]`, confirma o recebimento e encaminha.
+9. **Foto e PDF:** imagens e PDFs de até 4,5 MB vão anexados direto ao Claude. A Elise lê comprovantes e documentos, nunca confirma pagamento e encaminha com os dados que constam no anexo. O arquivo não é guardado: na planilha fica só a marcação "[imagem enviada]" ou "[PDF enviado]" e o resumo do encaminhamento. Outros formatos, como .docx, continuam como `[mídia: document]`.
+10. **Confirmar uma reserva:** no Google Agenda, retire o "A CONFIRMAR" do título e mande a confirmação ao cliente pelo app, com o link do Meet se for on-line. Responder pelo app pausa a Elise por 12 horas naquela conversa. Para recusar, apague o evento e responda ao cliente.
 
 ## Limites desta versão
 
 - A Elise consulta somente o Asaas (pelo CPF) e a agenda (com caso aceito). Ela não acessa pastas, contratos nem Gmail. Essas tarefas continuam com as rodadas internas.
 - O CPF é reconhecido na mensagem por padrão de 11 dígitos. Um telefone com 11 dígitos pode ser lido como CPF, mas nesse caso o Asaas não encontra o cadastro e nada é gravado.
-- Áudio, imagem e documento chegam como `[mídia: tipo]`. A Elise confirma o recebimento e não analisa o conteúdo.
 - O histórico guarda até 6.000 caracteres por cliente.
 
 ## Ativação (passos que só o titular da conta pode fazer)
 
 1. **WhatsApp:** no cenário, abra o módulo 1 (*Watch Events*) → *Create a webhook* → *Create a connection* → tipo **WhatsApp Business Cloud** → *Signup Mode* = **Coexistence**. Escaneie o QR com o app WhatsApp Business do número do escritório, que precisa estar na versão 2.24.17 ou superior. Desative antes a verificação em duas etapas do número. Marque os eventos **messages** e **smb_message_echoes**. Se a Meta disser que o número não é elegível para coexistência, pare e me avise.
 2. **Meta Billing Hub:** cadastre um meio de pagamento. Desde 1º/10/2026, as respostas além de 1.000 por mês não são entregues sem cartão, e o Make mostra "sucesso" mesmo assim.
-3. **Anthropic:** crie uma chave de API em console.anthropic.com e conecte-a no módulo 41.
+3. **Gemini (transcrição de áudio):** no Google AI Studio (aistudio.google.com), crie uma chave de API num projeto do Google Cloud **com faturamento ativado**. No nível gratuito, o Google pode usar o conteúdo para melhorar os produtos dele, o que é incompatível com o sigilo profissional. Conecte a chave no módulo 9.
+3.1. **Anthropic:** crie uma chave de API em console.anthropic.com e conecte-a no módulo 41.
 4. **Google:** conecte a conta Google nos módulos de planilha (4, 20, 21, 30, 32, 33, 46, 47), no módulo 38 (Drive) e nos módulos de agenda (60, 72, 74, 76). Use a conta Google **cuja agenda principal é a da Dra. Luana**, porque o cenário usa a agenda "primary". O Asaas (52, 53, 57) já usa a conexão existente. Nos módulos de planilha, confira se aparecem a planilha "LA Elise - Memória WhatsApp" e a aba "Conversas". Nas buscas (4 e 20), o filtro deve ser **coluna A = número**.
-5. **Envio:** no módulo 43, escolha o *Sender ID* (o número do escritório).
+5. **Envio e mídias:** use a mesma conexão do WhatsApp nos módulos 8 e 11 (baixar mídia). No módulo 43, escolha o *Sender ID* (o número do escritório).
 6. **Teste antes de ligar:** clique em *Run once* e mande uma mensagem de outro celular. Confira o caminho no histórico de execuções do Make. Se o módulo 3 vier vazio, os campos do evento têm outro nome: abra o pacote do módulo 1 e me envie a estrutura.
 7. **Ativar:** ligue o cenário (*Scheduling* → *Immediately*). Depois dos testes, ative **Data is confidential** nas configurações do cenário, para que o conteúdo das conversas não fique no log do Make (LGPD).
 
 ## Pontos de atenção (LGPD e OAB)
 
-- As conversas passam por Meta, Make, Google e Anthropic. Atualize a política de privacidade e o registro de operações de tratamento.
+- As conversas passam por Meta, Make, Google (inclusive Gemini, para os áudios) e Anthropic. Atualize a política de privacidade e o registro de operações de tratamento.
 - O prompt manda a Elise se identificar como IA quando perguntada (item 1 da skill) e proíbe orientação jurídica, promessa de resultado e informação de valores.
 - A planilha contém dados pessoais e sigilosos. Mantenha-a sem compartilhamento por link.

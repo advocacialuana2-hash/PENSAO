@@ -160,65 +160,13 @@
        }
       },
       {
-       "id": 4,
-       "module": "google-sheets:filterRows",
-       "version": 2,
-       "parameters": {},
-       "mapper": {
-        "from": "share",
-        "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
-        "sheetId": "Conversas",
-        "includesHeaders": true,
-        "tableFirstRow": "A1:Z1",
-        "filter": [
-         [
-          {
-           "a": "0",
-           "o": "text:equal",
-           "b": "{{3.wa_id}}"
-          }
-         ]
-        ],
-        "sortOrder": "",
-        "orderBy": "",
-        "limit": 1
-       },
-       "metadata": {
-        "designer": {
-         "x": 11400,
-         "y": 0
-        }
-       }
-      },
-      {
-       "id": 5,
-       "module": "util:SetVariables",
-       "version": 1,
-       "parameters": {},
-       "mapper": {
-        "scope": "roundtrip",
-        "variables": [
-         {
-          "name": "hist_cliente",
-          "value": "{{4.`2`}}\nCliente: {{3.texto}}"
-         }
-        ]
-       },
-       "metadata": {
-        "designer": {
-         "x": 1200,
-         "y": 0
-        }
-       }
-      },
-      {
-       "id": 6,
+       "id": 7,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
-         "x": 11700,
+         "x": 14100,
          "y": 0
         }
        },
@@ -226,40 +174,122 @@
         {
          "flow": [
           {
-           "id": 30,
-           "module": "google-sheets:updateRow",
-           "version": 2,
+           "id": 8,
+           "module": "whatsapp-business-cloud:getMedia",
+           "version": 1,
            "parameters": {},
            "mapper": {
-            "mode": "map",
-            "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
-            "sheetId": "Conversas",
-            "tableFirstRow": "A1:Z1",
-            "valueInputOption": "RAW",
-            "rowNumber": "{{4.__ROW_NUMBER__}}",
-            "values": {
-             "2": "{{if(length(5.hist_cliente) > 6000; substring(5.hist_cliente; length(5.hist_cliente) - 6000; length(5.hist_cliente)); 5.hist_cliente)}}",
-             "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}"
-            }
+            "mediaId": "{{1.value.messages[1].audio.id}}"
            },
            "metadata": {
             "designer": {
-             "x": 1500,
+             "x": 11400,
              "y": 0
             }
            },
            "filter": {
-            "name": "Elise pausada (humano assumiu)",
+            "name": "Áudio",
             "conditions": [
              [
               {
-               "a": "{{4.`3`}}",
-               "o": "exist"
-              },
+               "a": "{{1.value.messages[1].type}}",
+               "o": "text:equal",
+               "b": "audio"
+              }
+             ]
+            ]
+           },
+           "onerror": [
+            {
+             "id": 108,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 11400,
+               "y": 300
+              }
+             }
+            }
+           ]
+          },
+          {
+           "id": 9,
+           "module": "gemini-ai:makeApiCall",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "url": "/v1beta/models/gemini-flash-lite-latest:generateContent",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"contents\": [{\"parts\": [{\"inline_data\": {\"mime_type\": \"{{trim(first(split(8.mime_type; \";\")))}}\", \"data\": \"{{toString(8.mediaData; \"base64\")}}\"}}, {\"text\": \"Transcreva este áudio em português do Brasil, palavra por palavra, sem resumir, sem comentar e sem acrescentar nada. Marque trechos que não dá para entender como [inaudível]. Responda apenas com a transcrição.\"}]}], \"generationConfig\": {\"temperature\": 0}}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 11700,
+             "y": 0
+            }
+           },
+           "onerror": [
+            {
+             "id": 109,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 11700,
+               "y": 300
+              }
+             }
+            }
+           ],
+           "filter": {
+            "name": "Até 15 MB",
+            "conditions": [
+             [
               {
-               "a": "{{4.`3`}}",
-               "o": "date:greater",
-               "b": "{{now}}"
+               "a": "{{8.file_size}}",
+               "o": "number:less",
+               "b": "15000000"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 10,
+           "module": "util:SetVariables",
+           "version": 1,
+           "parameters": {},
+           "metadata": {
+            "designer": {
+             "x": 12000,
+             "y": 0
+            }
+           },
+           "mapper": {
+            "scope": "roundtrip",
+            "variables": [
+             {
+              "name": "midia_texto",
+              "value": "[áudio transcrito] {{trim(9.body.candidates[1].content.parts[1].text)}}"
+             }
+            ]
+           },
+           "filter": {
+            "name": "Transcrição obtida",
+            "conditions": [
+             [
+              {
+               "a": "{{9.body.candidates[1].content.parts[1].text}}",
+               "o": "exist"
               }
              ]
             ]
@@ -270,72 +300,206 @@
         {
          "flow": [
           {
-           "id": 31,
+           "id": 11,
+           "module": "whatsapp-business-cloud:getMedia",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "mediaId": "{{ifempty(1.value.messages[1].image.id; 1.value.messages[1].document.id)}}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 12300,
+             "y": 0
+            }
+           },
+           "filter": {
+            "name": "Imagem ou PDF",
+            "conditions": [
+             [
+              {
+               "a": "{{1.value.messages[1].type}}",
+               "o": "text:equal",
+               "b": "image"
+              }
+             ],
+             [
+              {
+               "a": "{{1.value.messages[1].type}}",
+               "o": "text:equal",
+               "b": "document"
+              },
+              {
+               "a": "{{1.value.messages[1].document.mime_type}}",
+               "o": "text:equal:ci",
+               "b": "application/pdf"
+              }
+             ]
+            ]
+           },
+           "onerror": [
+            {
+             "id": 111,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 12300,
+               "y": 300
+              }
+             }
+            }
+           ]
+          },
+          {
+           "id": 12,
+           "module": "util:SetVariables",
+           "version": 1,
+           "parameters": {},
+           "metadata": {
+            "designer": {
+             "x": 12600,
+             "y": 0
+            }
+           },
+           "filter": {
+            "name": "Até 4,5 MB",
+            "conditions": [
+             [
+              {
+               "a": "{{11.file_size}}",
+               "o": "number:less",
+               "b": "4500000"
+              }
+             ]
+            ]
+           },
+           "mapper": {
+            "scope": "roundtrip",
+            "variables": [
+             {
+              "name": "midia_bloco",
+              "value": "{\"type\": \"{{if(1.value.messages[1].type = \"image\"; \"image\"; \"document\")}}\", \"source\": {\"type\": \"base64\", \"media_type\": \"{{trim(first(split(11.mime_type; \";\")))}}\", \"data\": \"{{toString(11.mediaData; \"base64\")}}\"}},"
+             },
+             {
+              "name": "midia_texto",
+              "value": "{{if(1.value.messages[1].type = \"image\"; \"[imagem enviada, anexada a esta mensagem]\"; \"[PDF enviado, anexado a esta mensagem]\")}} {{1.value.messages[1].document.filename}} {{ifempty(1.value.messages[1].image.caption; 1.value.messages[1].document.caption)}}"
+             }
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 13,
+           "module": "util:GetVariables",
+           "version": 1,
+           "parameters": {},
+           "metadata": {
+            "designer": {
+             "x": 12900,
+             "y": 0
+            }
+           },
+           "mapper": {
+            "variables": [
+             "midia_texto",
+             "midia_bloco"
+            ]
+           }
+          },
+          {
+           "id": 14,
+           "module": "util:SetVariables",
+           "version": 1,
+           "parameters": {},
+           "metadata": {
+            "designer": {
+             "x": 13200,
+             "y": 0
+            }
+           },
+           "mapper": {
+            "scope": "roundtrip",
+            "variables": [
+             {
+              "name": "texto",
+              "value": "{{ifempty(13.midia_texto; 3.texto)}}"
+             }
+            ]
+           }
+          },
+          {
+           "id": 4,
+           "module": "google-sheets:filterRows",
+           "version": 2,
+           "parameters": {},
+           "mapper": {
+            "from": "share",
+            "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
+            "sheetId": "Conversas",
+            "includesHeaders": true,
+            "tableFirstRow": "A1:Z1",
+            "filter": [
+             [
+              {
+               "a": "0",
+               "o": "text:equal",
+               "b": "{{3.wa_id}}"
+              }
+             ]
+            ],
+            "sortOrder": "",
+            "orderBy": "",
+            "limit": 1
+           },
+           "metadata": {
+            "designer": {
+             "x": 13500,
+             "y": 0
+            }
+           }
+          },
+          {
+           "id": 5,
+           "module": "util:SetVariables",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "scope": "roundtrip",
+            "variables": [
+             {
+              "name": "hist_cliente",
+              "value": "{{4.`2`}}\nCliente: {{14.texto}}"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 1200,
+             "y": 0
+            }
+           }
+          },
+          {
+           "id": 6,
            "module": "builtin:BasicRouter",
            "version": 1,
            "mapper": null,
            "metadata": {
             "designer": {
-             "x": 1800,
+             "x": 13800,
              "y": 0
             }
-           },
-           "filter": {
-            "name": "Fora do horário (7h-19h)",
-            "conditions": [
-             [
-              {
-               "a": "{{4.`3`}}",
-               "o": "notexist"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:less",
-               "b": "7"
-              }
-             ],
-             [
-              {
-               "a": "{{4.`3`}}",
-               "o": "date:lessorequal",
-               "b": "{{now}}"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:less",
-               "b": "7"
-              }
-             ],
-             [
-              {
-               "a": "{{4.`3`}}",
-               "o": "notexist"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:greaterorequal",
-               "b": "19"
-              }
-             ],
-             [
-              {
-               "a": "{{4.`3`}}",
-               "o": "date:lessorequal",
-               "b": "{{now}}"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:greaterorequal",
-               "b": "19"
-              }
-             ]
-            ]
            },
            "routes": [
             {
              "flow": [
               {
-               "id": 32,
+               "id": 30,
                "module": "google-sheets:updateRow",
                "version": 2,
                "parameters": {},
@@ -347,27 +511,28 @@
                 "valueInputOption": "RAW",
                 "rowNumber": "{{4.__ROW_NUMBER__}}",
                 "values": {
-                 "0": "{{3.wa_id}}",
-                 "1": "{{3.nome}}",
                  "2": "{{if(length(5.hist_cliente) > 6000; substring(5.hist_cliente; length(5.hist_cliente) - 6000; length(5.hist_cliente)); 5.hist_cliente)}}",
-                 "4": "{{ifempty(4.`4`; \"NAO\")}}",
-                 "7": "SIM",
                  "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}"
                 }
                },
                "metadata": {
                 "designer": {
-                 "x": 2100,
+                 "x": 1500,
                  "y": 0
                 }
                },
                "filter": {
-                "name": "Cliente já na planilha",
+                "name": "Elise pausada (humano assumiu)",
                 "conditions": [
                  [
                   {
-                   "a": "{{4.__ROW_NUMBER__}}",
+                   "a": "{{4.`3`}}",
                    "o": "exist"
+                  },
+                  {
+                   "a": "{{4.`3`}}",
+                   "o": "date:greater",
+                   "b": "{{now}}"
                   }
                  ]
                 ]
@@ -378,610 +543,228 @@
             {
              "flow": [
               {
-               "id": 33,
-               "module": "google-sheets:addRow",
-               "version": 2,
-               "parameters": {},
-               "mapper": {
-                "mode": "map",
-                "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
-                "sheetId": "Conversas",
-                "tableFirstRow": "A1:Z1",
-                "valueInputOption": "RAW",
-                "insertUnformatted": false,
-                "insertDataOption": "INSERT_ROWS",
-                "values": {
-                 "0": "{{3.wa_id}}",
-                 "1": "{{3.nome}}",
-                 "2": "{{if(length(5.hist_cliente) > 6000; substring(5.hist_cliente; length(5.hist_cliente) - 6000; length(5.hist_cliente)); 5.hist_cliente)}}",
-                 "4": "{{ifempty(4.`4`; \"NAO\")}}",
-                 "7": "SIM",
-                 "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}"
-                }
-               },
-               "metadata": {
-                "designer": {
-                 "x": 2400,
-                 "y": 0
-                }
-               },
-               "filter": {
-                "name": "Cliente novo",
-                "conditions": [
-                 [
-                  {
-                   "a": "{{4.__ROW_NUMBER__}}",
-                   "o": "notexist"
-                  }
-                 ]
-                ]
-               }
-              }
-             ]
-            }
-           ]
-          }
-         ]
-        },
-        {
-         "flow": [
-          {
-           "id": 50,
-           "module": "util:SetVariables",
-           "version": 1,
-           "parameters": {},
-           "metadata": {
-            "designer": {
-             "x": 10800,
-             "y": 0
-            }
-           },
-           "filter": {
-            "name": "Dentro do horário e Elise ativa",
-            "conditions": [
-             [
-              {
-               "a": "{{4.`3`}}",
-               "o": "notexist"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:greaterorequal",
-               "b": "7"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:less",
-               "b": "19"
-              }
-             ],
-             [
-              {
-               "a": "{{4.`3`}}",
-               "o": "date:lessorequal",
-               "b": "{{now}}"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:greaterorequal",
-               "b": "7"
-              },
-              {
-               "a": "{{3.hora}}",
-               "o": "number:less",
-               "b": "19"
-              }
-             ]
-            ]
-           },
-           "mapper": {
-            "scope": "roundtrip",
-            "variables": [
-             {
-              "name": "cpf",
-              "value": "{{ifempty(4.`10`; if(length(replace(replace(3.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\"); /\\D/g; \"\")) = 11; if(length(replace(3.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\")) <= 14; replace(replace(3.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\"); /\\D/g; \"\"); \"\"); \"\"))}}"
-             }
-            ]
-           }
-          },
-          {
-           "id": 51,
-           "module": "builtin:BasicRouter",
-           "version": 1,
-           "mapper": null,
-           "metadata": {
-            "designer": {
-             "x": 11100,
-             "y": 0
-            }
-           },
-           "routes": [
-            {
-             "flow": [
-              {
-               "id": 52,
-               "module": "asaas:apiCall",
-               "version": 1,
-               "parameters": {
-                "__IMTCONN__": 11902246
-               },
-               "mapper": {
-                "url": "/v3/customers?cpfCnpj={{50.cpf}}",
-                "method": "GET",
-                "headers": [
-                 {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                 }
-                ]
-               },
-               "metadata": {
-                "designer": {
-                 "x": 2700,
-                 "y": 0
-                }
-               },
-               "onerror": [
-                {
-                 "id": 152,
-                 "module": "builtin:Ignore",
-                 "version": 1,
-                 "mapper": null,
-                 "metadata": {
-                  "designer": {
-                   "x": 2700,
-                   "y": 300
-                  }
-                 }
-                }
-               ],
-               "filter": {
-                "name": "CPF disponível",
-                "conditions": [
-                 [
-                  {
-                   "a": "{{50.cpf}}",
-                   "o": "exist"
-                  }
-                 ]
-                ]
-               }
-              },
-              {
-               "id": 56,
-               "module": "util:SetVariables",
-               "version": 1,
-               "parameters": {},
-               "metadata": {
-                "designer": {
-                 "x": 3000,
-                 "y": 0
-                }
-               },
-               "mapper": {
-                "scope": "roundtrip",
-                "variables": [
-                 {
-                  "name": "asaas_txt",
-                  "value": "cliente não encontrado"
-                 }
-                ]
-               }
-              },
-              {
-               "id": 53,
-               "module": "asaas:apiCall",
-               "version": 1,
-               "parameters": {
-                "__IMTCONN__": 11902246
-               },
-               "mapper": {
-                "url": "/v3/payments?customer={{52.body.data[1].id}}&status=OVERDUE&limit=10",
-                "method": "GET",
-                "headers": [
-                 {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                 }
-                ]
-               },
-               "metadata": {
-                "designer": {
-                 "x": 3300,
-                 "y": 0
-                }
-               },
-               "onerror": [
-                {
-                 "id": 153,
-                 "module": "builtin:Ignore",
-                 "version": 1,
-                 "mapper": null,
-                 "metadata": {
-                  "designer": {
-                   "x": 3300,
-                   "y": 300
-                  }
-                 }
-                }
-               ],
-               "filter": {
-                "name": "Cliente encontrado",
-                "conditions": [
-                 [
-                  {
-                   "a": "{{52.body.data[1].id}}",
-                   "o": "exist"
-                  }
-                 ]
-                ]
-               }
-              },
-              {
-               "id": 57,
-               "module": "asaas:apiCall",
-               "version": 1,
-               "parameters": {
-                "__IMTCONN__": 11902246
-               },
-               "mapper": {
-                "url": "/v3/payments?customer={{52.body.data[1].id}}&status=PENDING&limit=10",
-                "method": "GET",
-                "headers": [
-                 {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                 }
-                ]
-               },
-               "metadata": {
-                "designer": {
-                 "x": 3600,
-                 "y": 0
-                }
-               },
-               "onerror": [
-                {
-                 "id": 157,
-                 "module": "builtin:Ignore",
-                 "version": 1,
-                 "mapper": null,
-                 "metadata": {
-                  "designer": {
-                   "x": 3600,
-                   "y": 300
-                  }
-                 }
-                }
-               ]
-              },
-              {
-               "id": 58,
-               "module": "util:SetVariables",
-               "version": 1,
-               "parameters": {},
-               "metadata": {
-                "designer": {
-                 "x": 3900,
-                 "y": 0
-                }
-               },
-               "mapper": {
-                "scope": "roundtrip",
-                "variables": [
-                 {
-                  "name": "asaas_txt",
-                  "value": "Cadastro: {{52.body.data[1].name}}\nVENCIDAS: vencimentos: {{ifempty(join(map(53.body.data; \"dueDate\"); \"; \"); \"nenhuma\")}} | valores: {{ifempty(join(map(53.body.data; \"value\"); \"; \"); \"nenhuma\")}} | links: {{ifempty(join(map(53.body.data; \"invoiceUrl\"); \"; \"); \"nenhuma\")}}\nA VENCER: vencimentos: {{ifempty(join(map(57.body.data; \"dueDate\"); \"; \"); \"nenhuma\")}} | valores: {{ifempty(join(map(57.body.data; \"value\"); \"; \"); \"nenhuma\")}} | links: {{ifempty(join(map(57.body.data; \"invoiceUrl\"); \"; \"); \"nenhuma\")}}"
-                 },
-                 {
-                  "name": "cpf_valido",
-                  "value": "{{50.cpf}}"
-                 }
-                ]
-               }
-              }
-             ]
-            },
-            {
-             "flow": [
-              {
-               "id": 60,
-               "module": "google-calendar:makeApiCall",
-               "version": 5,
-               "parameters": {},
-               "mapper": {
-                "url": "/v3/freeBusy",
-                "method": "POST",
-                "headers": [
-                 {
-                  "key": "Content-Type",
-                  "value": "application/json"
-                 }
-                ],
-                "body": "{\"timeMin\": \"{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeMax\": \"{{formatDate(addDays(now; 14); \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeZone\": \"America/Campo_Grande\", \"items\": [{\"id\": \"primary\"}]}"
-               },
-               "metadata": {
-                "designer": {
-                 "x": 4200,
-                 "y": 0
-                }
-               },
-               "onerror": [
-                {
-                 "id": 160,
-                 "module": "builtin:Ignore",
-                 "version": 1,
-                 "mapper": null,
-                 "metadata": {
-                  "designer": {
-                   "x": 4200,
-                   "y": 300
-                  }
-                 }
-                }
-               ],
-               "filter": {
-                "name": "Caso aceito pela Dra. Luana",
-                "conditions": [
-                 [
-                  {
-                   "a": "{{4.`9`}}",
-                   "o": "text:equal:ci",
-                   "b": "SIM"
-                  }
-                 ]
-                ]
-               }
-              },
-              {
-               "id": 61,
-               "module": "util:SetVariables",
-               "version": 1,
-               "parameters": {},
-               "metadata": {
-                "designer": {
-                 "x": 4500,
-                 "y": 0
-                }
-               },
-               "mapper": {
-                "scope": "roundtrip",
-                "variables": [
-                 {
-                  "name": "agenda_txt",
-                  "value": "inícios: {{ifempty(join(map(60.body.calendars.primary.busy; \"start\"); \"; \"); \"nenhum período ocupado\")}}\nfins: {{join(map(60.body.calendars.primary.busy; \"end\"); \"; \")}}"
-                 }
-                ]
-               }
-              }
-             ]
-            },
-            {
-             "flow": [
-              {
-               "id": 62,
-               "module": "util:GetVariables",
-               "version": 1,
-               "parameters": {},
-               "metadata": {
-                "designer": {
-                 "x": 8100,
-                 "y": 0
-                }
-               },
-               "mapper": {
-                "variables": [
-                 "asaas_txt",
-                 "agenda_txt",
-                 "cpf_valido"
-                ]
-               }
-              },
-              {
-               "id": 38,
-               "module": "google-drive:makeApiCall",
-               "version": 4,
-               "parameters": {},
-               "mapper": {
-                "url": "/v3/files/18has88qkJLGegEvRPn0C1F4s-GJs2kUc3AOC2K7dbsI/export",
-                "method": "GET",
-                "qs": [
-                 {
-                  "key": "mimeType",
-                  "value": "text/plain"
-                 }
-                ],
-                "headers": []
-               },
-               "metadata": {
-                "designer": {
-                 "x": 8400,
-                 "y": 0
-                }
-               },
-               "onerror": [
-                {
-                 "id": 138,
-                 "module": "builtin:Ignore",
-                 "version": 1,
-                 "mapper": null,
-                 "metadata": {
-                  "designer": {
-                   "x": 8400,
-                   "y": 300
-                  }
-                 }
-                }
-               ]
-              },
-              {
-               "id": 39,
-               "module": "json:TransformToJSON",
-               "version": 1,
-               "parameters": {
-                "space": ""
-               },
-               "mapper": {
-                "object": "{{38.body}}"
-               },
-               "metadata": {
-                "designer": {
-                 "x": 8700,
-                 "y": 0
-                }
-               }
-              },
-              {
-               "id": 40,
-               "module": "json:TransformToJSON",
-               "version": 1,
-               "parameters": {
-                "space": ""
-               },
-               "mapper": {
-                "object": "CONVERSA\nPerfil: {{3.nome}}\nAgora: {{formatDate(now; \"dddd, DD/MM/YYYY HH:mm\"; \"America/Campo_Grande\")}}\nHistórico (a última linha é a mensagem a responder):\n{{5.hist_cliente}}\n\nDADOS DO SISTEMA\ncaso_aceito: {{ifempty(4.`9`; \"NAO\")}}\nAGENDA (períodos ocupados): {{ifempty(62.agenda_txt; \"não consultada (caso não aceito)\")}}\nASAAS: {{ifempty(62.asaas_txt; \"CPF não informado\")}}"
-               },
-               "metadata": {
-                "designer": {
-                 "x": 9000,
-                 "y": 0
-                }
-               }
-              },
-              {
-               "id": 41,
-               "module": "anthropic-claude:makeAnApiCall",
-               "version": 1,
-               "parameters": {},
-               "mapper": {
-                "url": "/v1/messages",
-                "method": "POST",
-                "headers": [
-                 {
-                  "key": "anthropic-version",
-                  "value": "2023-06-01"
-                 },
-                 {
-                  "key": "content-type",
-                  "value": "application/json"
-                 }
-                ],
-                "body": "{\"model\": \"claude-sonnet-5-5\", \"max_tokens\": 1024, \"system\": [{\"type\": \"text\", \"text\": {{39.json}} , \"cache_control\": {\"type\": \"ephemeral\", \"ttl\": \"1h\"}}], \"messages\": [{\"role\": \"user\", \"content\": {{40.json}} }]}"
-               },
-               "metadata": {
-                "designer": {
-                 "x": 9300,
-                 "y": 0
-                }
-               },
-               "onerror": [
-                {
-                 "id": 49,
-                 "module": "builtin:Ignore",
-                 "version": 1,
-                 "mapper": null,
-                 "metadata": {
-                  "designer": {
-                   "x": 9300,
-                   "y": 300
-                  }
-                 }
-                }
-               ]
-              },
-              {
-               "id": 42,
-               "module": "util:SetVariables",
-               "version": 1,
-               "parameters": {},
-               "metadata": {
-                "designer": {
-                 "x": 9600,
-                 "y": 0
-                }
-               },
-               "mapper": {
-                "scope": "roundtrip",
-                "variables": [
-                 {
-                  "name": "resposta",
-                  "value": "{{trim(replace(replace(41.body.content[1].text; /<<ENCAMINHAR:[\\s\\S]*?>>/g; \"\"); /<<RESERVAR:[\\s\\S]*?>>/g; \"\"))}}"
-                 },
-                 {
-                  "name": "encaminhar",
-                  "value": "{{if(contains(41.body.content[1].text; \"<<ENCAMINHAR\"); \"SIM\"; \"NAO\")}}"
-                 },
-                 {
-                  "name": "motivo",
-                  "value": "{{if(contains(41.body.content[1].text; \"<<ENCAMINHAR\"); trim(replace(replace(41.body.content[1].text; /^[\\s\\S]*<<ENCAMINHAR:/; \"\"); />>[\\s\\S]*$/; \"\")); \"\")}}"
-                 },
-                 {
-                  "name": "reservar",
-                  "value": "{{if(contains(41.body.content[1].text; \"<<RESERVAR\"); trim(replace(replace(41.body.content[1].text; /^[\\s\\S]*<<RESERVAR:/; \"\"); />>[\\s\\S]*$/; \"\")); \"\")}}"
-                 }
-                ]
-               }
-              },
-              {
-               "id": 43,
-               "module": "whatsapp-business-cloud:sendMessage",
-               "version": 1,
-               "parameters": {},
-               "mapper": {
-                "to": "{{3.wa_id}}",
-                "type": "text",
-                "text": {
-                 "body": "{{42.resposta}}",
-                 "preview_url": false
-                }
-               },
-               "metadata": {
-                "designer": {
-                 "x": 9900,
-                 "y": 0
-                }
-               },
-               "filter": {
-                "name": "Há resposta",
-                "conditions": [
-                 [
-                  {
-                   "a": "{{42.resposta}}",
-                   "o": "exist"
-                  }
-                 ]
-                ]
-               }
-              },
-              {
-               "id": 44,
-               "module": "util:SetVariables",
-               "version": 1,
-               "parameters": {},
-               "metadata": {
-                "designer": {
-                 "x": 10200,
-                 "y": 0
-                }
-               },
-               "mapper": {
-                "scope": "roundtrip",
-                "variables": [
-                 {
-                  "name": "hist_full",
-                  "value": "{{5.hist_cliente}}\nElise: {{42.resposta}}"
-                 }
-                ]
-               }
-              },
-              {
-               "id": 70,
+               "id": 31,
                "module": "builtin:BasicRouter",
                "version": 1,
                "mapper": null,
                "metadata": {
                 "designer": {
-                 "x": 10500,
+                 "x": 1800,
+                 "y": 0
+                }
+               },
+               "filter": {
+                "name": "Fora do horário (7h-19h)",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{4.`3`}}",
+                   "o": "notexist"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:less",
+                   "b": "7"
+                  }
+                 ],
+                 [
+                  {
+                   "a": "{{4.`3`}}",
+                   "o": "date:lessorequal",
+                   "b": "{{now}}"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:less",
+                   "b": "7"
+                  }
+                 ],
+                 [
+                  {
+                   "a": "{{4.`3`}}",
+                   "o": "notexist"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:greaterorequal",
+                   "b": "19"
+                  }
+                 ],
+                 [
+                  {
+                   "a": "{{4.`3`}}",
+                   "o": "date:lessorequal",
+                   "b": "{{now}}"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:greaterorequal",
+                   "b": "19"
+                  }
+                 ]
+                ]
+               },
+               "routes": [
+                {
+                 "flow": [
+                  {
+                   "id": 32,
+                   "module": "google-sheets:updateRow",
+                   "version": 2,
+                   "parameters": {},
+                   "mapper": {
+                    "mode": "map",
+                    "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
+                    "sheetId": "Conversas",
+                    "tableFirstRow": "A1:Z1",
+                    "valueInputOption": "RAW",
+                    "rowNumber": "{{4.__ROW_NUMBER__}}",
+                    "values": {
+                     "0": "{{3.wa_id}}",
+                     "1": "{{3.nome}}",
+                     "2": "{{if(length(5.hist_cliente) > 6000; substring(5.hist_cliente; length(5.hist_cliente) - 6000; length(5.hist_cliente)); 5.hist_cliente)}}",
+                     "4": "{{ifempty(4.`4`; \"NAO\")}}",
+                     "7": "SIM",
+                     "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}"
+                    }
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 2100,
+                     "y": 0
+                    }
+                   },
+                   "filter": {
+                    "name": "Cliente já na planilha",
+                    "conditions": [
+                     [
+                      {
+                       "a": "{{4.__ROW_NUMBER__}}",
+                       "o": "exist"
+                      }
+                     ]
+                    ]
+                   }
+                  }
+                 ]
+                },
+                {
+                 "flow": [
+                  {
+                   "id": 33,
+                   "module": "google-sheets:addRow",
+                   "version": 2,
+                   "parameters": {},
+                   "mapper": {
+                    "mode": "map",
+                    "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
+                    "sheetId": "Conversas",
+                    "tableFirstRow": "A1:Z1",
+                    "valueInputOption": "RAW",
+                    "insertUnformatted": false,
+                    "insertDataOption": "INSERT_ROWS",
+                    "values": {
+                     "0": "{{3.wa_id}}",
+                     "1": "{{3.nome}}",
+                     "2": "{{if(length(5.hist_cliente) > 6000; substring(5.hist_cliente; length(5.hist_cliente) - 6000; length(5.hist_cliente)); 5.hist_cliente)}}",
+                     "4": "{{ifempty(4.`4`; \"NAO\")}}",
+                     "7": "SIM",
+                     "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}"
+                    }
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 2400,
+                     "y": 0
+                    }
+                   },
+                   "filter": {
+                    "name": "Cliente novo",
+                    "conditions": [
+                     [
+                      {
+                       "a": "{{4.__ROW_NUMBER__}}",
+                       "o": "notexist"
+                      }
+                     ]
+                    ]
+                   }
+                  }
+                 ]
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 50,
+               "module": "util:SetVariables",
+               "version": 1,
+               "parameters": {},
+               "metadata": {
+                "designer": {
+                 "x": 10800,
+                 "y": 0
+                }
+               },
+               "filter": {
+                "name": "Dentro do horário e Elise ativa",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{4.`3`}}",
+                   "o": "notexist"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:greaterorequal",
+                   "b": "7"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:less",
+                   "b": "19"
+                  }
+                 ],
+                 [
+                  {
+                   "a": "{{4.`3`}}",
+                   "o": "date:lessorequal",
+                   "b": "{{now}}"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:greaterorequal",
+                   "b": "7"
+                  },
+                  {
+                   "a": "{{3.hora}}",
+                   "o": "number:less",
+                   "b": "19"
+                  }
+                 ]
+                ]
+               },
+               "mapper": {
+                "scope": "roundtrip",
+                "variables": [
+                 {
+                  "name": "cpf",
+                  "value": "{{ifempty(4.`10`; if(length(replace(replace(14.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\"); /\\D/g; \"\")) = 11; if(length(replace(14.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\")) <= 14; replace(replace(14.texto; /^[\\s\\S]*?(\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})[\\s\\S]*$/; \"$1\"); /\\D/g; \"\"); \"\"); \"\"))}}"
+                 }
+                ]
+               }
+              },
+              {
+               "id": 51,
+               "module": "builtin:BasicRouter",
+               "version": 1,
+               "mapper": null,
+               "metadata": {
+                "designer": {
+                 "x": 11100,
                  "y": 0
                 }
                },
@@ -989,39 +772,193 @@
                 {
                  "flow": [
                   {
-                   "id": 71,
+                   "id": 52,
+                   "module": "asaas:apiCall",
+                   "version": 1,
+                   "parameters": {
+                    "__IMTCONN__": 11902246
+                   },
+                   "mapper": {
+                    "url": "/v3/customers?cpfCnpj={{50.cpf}}",
+                    "method": "GET",
+                    "headers": [
+                     {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                     }
+                    ]
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 2700,
+                     "y": 0
+                    }
+                   },
+                   "onerror": [
+                    {
+                     "id": 152,
+                     "module": "builtin:Ignore",
+                     "version": 1,
+                     "mapper": null,
+                     "metadata": {
+                      "designer": {
+                       "x": 2700,
+                       "y": 300
+                      }
+                     }
+                    }
+                   ],
+                   "filter": {
+                    "name": "CPF disponível",
+                    "conditions": [
+                     [
+                      {
+                       "a": "{{50.cpf}}",
+                       "o": "exist"
+                      }
+                     ]
+                    ]
+                   }
+                  },
+                  {
+                   "id": 56,
                    "module": "util:SetVariables",
                    "version": 1,
                    "parameters": {},
                    "metadata": {
                     "designer": {
-                     "x": 4800,
+                     "x": 3000,
                      "y": 0
                     }
-                   },
-                   "filter": {
-                    "name": "Cliente escolheu horário",
-                    "conditions": [
-                     [
-                      {
-                       "a": "{{42.reservar}}",
-                       "o": "exist"
-                      }
-                     ]
-                    ]
                    },
                    "mapper": {
                     "scope": "roundtrip",
                     "variables": [
                      {
-                      "name": "reserva_txt",
-                      "value": "NÃO RESERVADO: o horário escolhido ({{trim(first(split(42.reservar; \"|\")))}}, {{lower(trim(last(split(42.reservar; \"|\"))))}}) estava ocupado ou inválido na reconferência. Oferecer outra opção ao cliente."
+                      "name": "asaas_txt",
+                      "value": "cliente não encontrado"
                      }
                     ]
                    }
                   },
                   {
-                   "id": 72,
+                   "id": 53,
+                   "module": "asaas:apiCall",
+                   "version": 1,
+                   "parameters": {
+                    "__IMTCONN__": 11902246
+                   },
+                   "mapper": {
+                    "url": "/v3/payments?customer={{52.body.data[1].id}}&status=OVERDUE&limit=10",
+                    "method": "GET",
+                    "headers": [
+                     {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                     }
+                    ]
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 3300,
+                     "y": 0
+                    }
+                   },
+                   "onerror": [
+                    {
+                     "id": 153,
+                     "module": "builtin:Ignore",
+                     "version": 1,
+                     "mapper": null,
+                     "metadata": {
+                      "designer": {
+                       "x": 3300,
+                       "y": 300
+                      }
+                     }
+                    }
+                   ],
+                   "filter": {
+                    "name": "Cliente encontrado",
+                    "conditions": [
+                     [
+                      {
+                       "a": "{{52.body.data[1].id}}",
+                       "o": "exist"
+                      }
+                     ]
+                    ]
+                   }
+                  },
+                  {
+                   "id": 57,
+                   "module": "asaas:apiCall",
+                   "version": 1,
+                   "parameters": {
+                    "__IMTCONN__": 11902246
+                   },
+                   "mapper": {
+                    "url": "/v3/payments?customer={{52.body.data[1].id}}&status=PENDING&limit=10",
+                    "method": "GET",
+                    "headers": [
+                     {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                     }
+                    ]
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 3600,
+                     "y": 0
+                    }
+                   },
+                   "onerror": [
+                    {
+                     "id": 157,
+                     "module": "builtin:Ignore",
+                     "version": 1,
+                     "mapper": null,
+                     "metadata": {
+                      "designer": {
+                       "x": 3600,
+                       "y": 300
+                      }
+                     }
+                    }
+                   ]
+                  },
+                  {
+                   "id": 58,
+                   "module": "util:SetVariables",
+                   "version": 1,
+                   "parameters": {},
+                   "metadata": {
+                    "designer": {
+                     "x": 3900,
+                     "y": 0
+                    }
+                   },
+                   "mapper": {
+                    "scope": "roundtrip",
+                    "variables": [
+                     {
+                      "name": "asaas_txt",
+                      "value": "Cadastro: {{52.body.data[1].name}}\nVENCIDAS: vencimentos: {{ifempty(join(map(53.body.data; \"dueDate\"); \"; \"); \"nenhuma\")}} | valores: {{ifempty(join(map(53.body.data; \"value\"); \"; \"); \"nenhuma\")}} | links: {{ifempty(join(map(53.body.data; \"invoiceUrl\"); \"; \"); \"nenhuma\")}}\nA VENCER: vencimentos: {{ifempty(join(map(57.body.data; \"dueDate\"); \"; \"); \"nenhuma\")}} | valores: {{ifempty(join(map(57.body.data; \"value\"); \"; \"); \"nenhuma\")}} | links: {{ifempty(join(map(57.body.data; \"invoiceUrl\"); \"; \"); \"nenhuma\")}}"
+                     },
+                     {
+                      "name": "cpf_valido",
+                      "value": "{{50.cpf}}"
+                     }
+                    ]
+                   }
+                  }
+                 ]
+                },
+                {
+                 "flow": [
+                  {
+                   "id": 60,
                    "module": "google-calendar:makeApiCall",
                    "version": 5,
                    "parameters": {},
@@ -1034,23 +971,116 @@
                       "value": "application/json"
                      }
                     ],
-                    "body": "{\"timeMin\": \"{{formatDate(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeMax\": \"{{formatDate(addHours(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); 1); \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeZone\": \"America/Campo_Grande\", \"items\": [{\"id\": \"primary\"}]}"
+                    "body": "{\"timeMin\": \"{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeMax\": \"{{formatDate(addDays(now; 14); \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeZone\": \"America/Campo_Grande\", \"items\": [{\"id\": \"primary\"}]}"
                    },
                    "metadata": {
                     "designer": {
-                     "x": 5100,
+                     "x": 4200,
                      "y": 0
                     }
                    },
                    "onerror": [
                     {
-                     "id": 172,
+                     "id": 160,
                      "module": "builtin:Ignore",
                      "version": 1,
                      "mapper": null,
                      "metadata": {
                       "designer": {
-                       "x": 5100,
+                       "x": 4200,
+                       "y": 300
+                      }
+                     }
+                    }
+                   ],
+                   "filter": {
+                    "name": "Caso aceito pela Dra. Luana",
+                    "conditions": [
+                     [
+                      {
+                       "a": "{{4.`9`}}",
+                       "o": "text:equal:ci",
+                       "b": "SIM"
+                      }
+                     ]
+                    ]
+                   }
+                  },
+                  {
+                   "id": 61,
+                   "module": "util:SetVariables",
+                   "version": 1,
+                   "parameters": {},
+                   "metadata": {
+                    "designer": {
+                     "x": 4500,
+                     "y": 0
+                    }
+                   },
+                   "mapper": {
+                    "scope": "roundtrip",
+                    "variables": [
+                     {
+                      "name": "agenda_txt",
+                      "value": "inícios: {{ifempty(join(map(60.body.calendars.primary.busy; \"start\"); \"; \"); \"nenhum período ocupado\")}}\nfins: {{join(map(60.body.calendars.primary.busy; \"end\"); \"; \")}}"
+                     }
+                    ]
+                   }
+                  }
+                 ]
+                },
+                {
+                 "flow": [
+                  {
+                   "id": 62,
+                   "module": "util:GetVariables",
+                   "version": 1,
+                   "parameters": {},
+                   "metadata": {
+                    "designer": {
+                     "x": 8100,
+                     "y": 0
+                    }
+                   },
+                   "mapper": {
+                    "variables": [
+                     "asaas_txt",
+                     "agenda_txt",
+                     "cpf_valido"
+                    ]
+                   }
+                  },
+                  {
+                   "id": 38,
+                   "module": "google-drive:makeApiCall",
+                   "version": 4,
+                   "parameters": {},
+                   "mapper": {
+                    "url": "/v3/files/18has88qkJLGegEvRPn0C1F4s-GJs2kUc3AOC2K7dbsI/export",
+                    "method": "GET",
+                    "qs": [
+                     {
+                      "key": "mimeType",
+                      "value": "text/plain"
+                     }
+                    ],
+                    "headers": []
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 8400,
+                     "y": 0
+                    }
+                   },
+                   "onerror": [
+                    {
+                     "id": 138,
+                     "module": "builtin:Ignore",
+                     "version": 1,
+                     "mapper": null,
+                     "metadata": {
+                      "designer": {
+                       "x": 8400,
                        "y": 300
                       }
                      }
@@ -1058,206 +1088,173 @@
                    ]
                   },
                   {
-                   "id": 73,
-                   "module": "builtin:BasicRouter",
+                   "id": 39,
+                   "module": "json:TransformToJSON",
                    "version": 1,
-                   "mapper": null,
+                   "parameters": {
+                    "space": ""
+                   },
+                   "mapper": {
+                    "object": "{{38.body}}"
+                   },
                    "metadata": {
                     "designer": {
-                     "x": 5400,
+                     "x": 8700,
+                     "y": 0
+                    }
+                   }
+                  },
+                  {
+                   "id": 40,
+                   "module": "json:TransformToJSON",
+                   "version": 1,
+                   "parameters": {
+                    "space": ""
+                   },
+                   "mapper": {
+                    "object": "CONVERSA\nPerfil: {{3.nome}}\nAgora: {{formatDate(now; \"dddd, DD/MM/YYYY HH:mm\"; \"America/Campo_Grande\")}}\nHistórico (a última linha é a mensagem a responder):\n{{5.hist_cliente}}\n\nDADOS DO SISTEMA\ncaso_aceito: {{ifempty(4.`9`; \"NAO\")}}\nAGENDA (períodos ocupados): {{ifempty(62.agenda_txt; \"não consultada (caso não aceito)\")}}\nASAAS: {{ifempty(62.asaas_txt; \"CPF não informado\")}}"
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 9000,
+                     "y": 0
+                    }
+                   }
+                  },
+                  {
+                   "id": 41,
+                   "module": "anthropic-claude:makeAnApiCall",
+                   "version": 1,
+                   "parameters": {},
+                   "mapper": {
+                    "url": "/v1/messages",
+                    "method": "POST",
+                    "headers": [
+                     {
+                      "key": "anthropic-version",
+                      "value": "2023-06-01"
+                     },
+                     {
+                      "key": "content-type",
+                      "value": "application/json"
+                     }
+                    ],
+                    "body": "{\"model\": \"claude-sonnet-5-5\", \"max_tokens\": 1024, \"system\": [{\"type\": \"text\", \"text\": {{39.json}} , \"cache_control\": {\"type\": \"ephemeral\", \"ttl\": \"1h\"}}], \"messages\": [{\"role\": \"user\", \"content\": [{{13.midia_bloco}} {\"type\": \"text\", \"text\": {{40.json}} }]}]}"
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 9300,
                      "y": 0
                     }
                    },
-                   "routes": [
+                   "onerror": [
                     {
-                     "flow": [
-                      {
-                       "id": 74,
-                       "module": "google-calendar:makeApiCall",
-                       "version": 5,
-                       "parameters": {},
-                       "mapper": {
-                        "url": "/v3/calendars/primary/events?conferenceDataVersion=1",
-                        "method": "POST",
-                        "headers": [
-                         {
-                          "key": "Content-Type",
-                          "value": "application/json"
-                         }
-                        ],
-                        "body": "{\"summary\": \"A CONFIRMAR - Consulta online - {{replace(3.nome; /[\"\\\\]/g; \"\")}}\", \"colorId\": \"5\", \"description\": \"Reserva feita pela Elise (WhatsApp). Cliente: {{replace(3.nome; /[\"\\\\]/g; \"\")}} | WhatsApp: +{{3.wa_id}}. Confirme com o cliente e depois retire o A CONFIRMAR do título.\", \"start\": {\"dateTime\": \"{{trim(first(split(42.reservar; \"|\")))}}:00\", \"timeZone\": \"America/Campo_Grande\"}, \"end\": {\"dateTime\": \"{{formatDate(addHours(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); 1); \"YYYY-MM-DDTHH:mm:ss\"; \"America/Campo_Grande\")}}\", \"timeZone\": \"America/Campo_Grande\"}, \"conferenceData\": {\"createRequest\": {\"requestId\": \"elise-{{3.wa_id}}-{{formatDate(now; \"X\")}}\", \"conferenceSolutionKey\": {\"type\": \"hangoutsMeet\"}}}}"
-                       },
-                       "metadata": {
-                        "designer": {
-                         "x": 5700,
-                         "y": 0
-                        }
-                       },
-                       "onerror": [
-                        {
-                         "id": 174,
-                         "module": "builtin:Ignore",
-                         "version": 1,
-                         "mapper": null,
-                         "metadata": {
-                          "designer": {
-                           "x": 5700,
-                           "y": 300
-                          }
-                         }
-                        }
-                       ],
-                       "filter": {
-                        "name": "Livre e on-line",
-                        "conditions": [
-                         [
-                          {
-                           "a": "{{length(72.body.calendars.primary.busy)}}",
-                           "o": "number:equal",
-                           "b": "0"
-                          },
-                          {
-                           "a": "{{lower(trim(last(split(42.reservar; \"|\"))))}}",
-                           "o": "text:contain",
-                           "b": "on"
-                          }
-                         ]
-                        ]
-                       }
-                      },
-                      {
-                       "id": 75,
-                       "module": "util:SetVariables",
-                       "version": 1,
-                       "parameters": {},
-                       "metadata": {
-                        "designer": {
-                         "x": 6000,
-                         "y": 0
-                        }
-                       },
-                       "mapper": {
-                        "scope": "roundtrip",
-                        "variables": [
-                         {
-                          "name": "reserva_txt",
-                          "value": "Reserva A CONFIRMAR criada: {{trim(first(split(42.reservar; \"|\")))}} (on-line). Meet: {{74.body.hangoutLink}}"
-                         }
-                        ]
-                       }
+                     "id": 49,
+                     "module": "builtin:Ignore",
+                     "version": 1,
+                     "mapper": null,
+                     "metadata": {
+                      "designer": {
+                       "x": 9300,
+                       "y": 300
                       }
-                     ]
-                    },
-                    {
-                     "flow": [
-                      {
-                       "id": 76,
-                       "module": "google-calendar:makeApiCall",
-                       "version": 5,
-                       "parameters": {},
-                       "mapper": {
-                        "url": "/v3/calendars/primary/events",
-                        "method": "POST",
-                        "headers": [
-                         {
-                          "key": "Content-Type",
-                          "value": "application/json"
-                         }
-                        ],
-                        "body": "{\"summary\": \"A CONFIRMAR - Consulta presencial - {{replace(3.nome; /[\"\\\\]/g; \"\")}}\", \"colorId\": \"5\", \"description\": \"Reserva feita pela Elise (WhatsApp). Cliente: {{replace(3.nome; /[\"\\\\]/g; \"\")}} | WhatsApp: +{{3.wa_id}}. Confirme com o cliente e depois retire o A CONFIRMAR do título.\", \"start\": {\"dateTime\": \"{{trim(first(split(42.reservar; \"|\")))}}:00\", \"timeZone\": \"America/Campo_Grande\"}, \"end\": {\"dateTime\": \"{{formatDate(addHours(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); 1); \"YYYY-MM-DDTHH:mm:ss\"; \"America/Campo_Grande\")}}\", \"timeZone\": \"America/Campo_Grande\"}}"
-                       },
-                       "metadata": {
-                        "designer": {
-                         "x": 6300,
-                         "y": 0
-                        }
-                       },
-                       "onerror": [
-                        {
-                         "id": 176,
-                         "module": "builtin:Ignore",
-                         "version": 1,
-                         "mapper": null,
-                         "metadata": {
-                          "designer": {
-                           "x": 6300,
-                           "y": 300
-                          }
-                         }
-                        }
-                       ],
-                       "filter": {
-                        "name": "Livre e presencial",
-                        "conditions": [
-                         [
-                          {
-                           "a": "{{length(72.body.calendars.primary.busy)}}",
-                           "o": "number:equal",
-                           "b": "0"
-                          },
-                          {
-                           "a": "{{lower(trim(last(split(42.reservar; \"|\"))))}}",
-                           "o": "text:notcontain",
-                           "b": "on"
-                          }
-                         ]
-                        ]
-                       }
-                      },
-                      {
-                       "id": 77,
-                       "module": "util:SetVariables",
-                       "version": 1,
-                       "parameters": {},
-                       "metadata": {
-                        "designer": {
-                         "x": 6600,
-                         "y": 0
-                        }
-                       },
-                       "mapper": {
-                        "scope": "roundtrip",
-                        "variables": [
-                         {
-                          "name": "reserva_txt",
-                          "value": "Reserva A CONFIRMAR criada: {{trim(first(split(42.reservar; \"|\")))}} (presencial)."
-                         }
-                        ]
-                       }
-                      }
-                     ]
+                     }
                     }
                    ]
-                  }
-                 ]
-                },
-                {
-                 "flow": [
+                  },
                   {
-                   "id": 78,
-                   "module": "util:GetVariables",
+                   "id": 42,
+                   "module": "util:SetVariables",
                    "version": 1,
                    "parameters": {},
                    "metadata": {
                     "designer": {
-                     "x": 6900,
+                     "x": 9600,
                      "y": 0
                     }
                    },
                    "mapper": {
+                    "scope": "roundtrip",
                     "variables": [
-                     "reserva_txt"
+                     {
+                      "name": "resposta",
+                      "value": "{{trim(replace(replace(41.body.content[1].text; /<<ENCAMINHAR:[\\s\\S]*?>>/g; \"\"); /<<RESERVAR:[\\s\\S]*?>>/g; \"\"))}}"
+                     },
+                     {
+                      "name": "encaminhar",
+                      "value": "{{if(contains(41.body.content[1].text; \"<<ENCAMINHAR\"); \"SIM\"; \"NAO\")}}"
+                     },
+                     {
+                      "name": "motivo",
+                      "value": "{{if(contains(41.body.content[1].text; \"<<ENCAMINHAR\"); trim(replace(replace(41.body.content[1].text; /^[\\s\\S]*<<ENCAMINHAR:/; \"\"); />>[\\s\\S]*$/; \"\")); \"\")}}"
+                     },
+                     {
+                      "name": "reservar",
+                      "value": "{{if(contains(41.body.content[1].text; \"<<RESERVAR\"); trim(replace(replace(41.body.content[1].text; /^[\\s\\S]*<<RESERVAR:/; \"\"); />>[\\s\\S]*$/; \"\")); \"\")}}"
+                     }
                     ]
                    }
                   },
                   {
-                   "id": 45,
+                   "id": 43,
+                   "module": "whatsapp-business-cloud:sendMessage",
+                   "version": 1,
+                   "parameters": {},
+                   "mapper": {
+                    "to": "{{3.wa_id}}",
+                    "type": "text",
+                    "text": {
+                     "body": "{{42.resposta}}",
+                     "preview_url": false
+                    }
+                   },
+                   "metadata": {
+                    "designer": {
+                     "x": 9900,
+                     "y": 0
+                    }
+                   },
+                   "filter": {
+                    "name": "Há resposta",
+                    "conditions": [
+                     [
+                      {
+                       "a": "{{42.resposta}}",
+                       "o": "exist"
+                      }
+                     ]
+                    ]
+                   }
+                  },
+                  {
+                   "id": 44,
+                   "module": "util:SetVariables",
+                   "version": 1,
+                   "parameters": {},
+                   "metadata": {
+                    "designer": {
+                     "x": 10200,
+                     "y": 0
+                    }
+                   },
+                   "mapper": {
+                    "scope": "roundtrip",
+                    "variables": [
+                     {
+                      "name": "hist_full",
+                      "value": "{{5.hist_cliente}}\nElise: {{42.resposta}}"
+                     }
+                    ]
+                   }
+                  },
+                  {
+                   "id": 70,
                    "module": "builtin:BasicRouter",
                    "version": 1,
                    "mapper": null,
                    "metadata": {
                     "designer": {
-                     "x": 7200,
+                     "x": 10500,
                      "y": 0
                     }
                    },
@@ -1265,95 +1262,375 @@
                     {
                      "flow": [
                       {
-                       "id": 46,
-                       "module": "google-sheets:updateRow",
-                       "version": 2,
+                       "id": 71,
+                       "module": "util:SetVariables",
+                       "version": 1,
                        "parameters": {},
-                       "mapper": {
-                        "mode": "map",
-                        "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
-                        "sheetId": "Conversas",
-                        "tableFirstRow": "A1:Z1",
-                        "valueInputOption": "RAW",
-                        "rowNumber": "{{4.__ROW_NUMBER__}}",
-                        "values": {
-                         "0": "{{3.wa_id}}",
-                         "1": "{{3.nome}}",
-                         "2": "{{if(length(44.hist_full) > 6000; substring(44.hist_full; length(44.hist_full) - 6000; length(44.hist_full)); 44.hist_full)}}",
-                         "4": "{{if(length(78.reserva_txt) > 0; \"SIM\"; if(42.encaminhar = \"SIM\"; \"SIM\"; ifempty(4.`4`; \"NAO\")))}}",
-                         "5": "{{if(length(78.reserva_txt) > 0; 78.reserva_txt; if(42.encaminhar = \"SIM\"; 42.motivo; 4.`5`))}}",
-                         "6": "{{if(length(78.reserva_txt) > 0; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); if(42.encaminhar = \"SIM\"; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); 4.`6`))}}",
-                         "7": "NAO",
-                         "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}",
-                         "10": "{{ifempty(62.cpf_valido; 4.`10`)}}",
-                         "11": "{{if(contains(78.reserva_txt; \"criada\"); 78.reserva_txt; 4.`11`)}}"
-                        }
-                       },
                        "metadata": {
                         "designer": {
-                         "x": 7500,
+                         "x": 4800,
                          "y": 0
                         }
                        },
                        "filter": {
-                        "name": "Cliente já na planilha",
+                        "name": "Cliente escolheu horário",
                         "conditions": [
                          [
                           {
-                           "a": "{{4.__ROW_NUMBER__}}",
+                           "a": "{{42.reservar}}",
                            "o": "exist"
                           }
                          ]
                         ]
+                       },
+                       "mapper": {
+                        "scope": "roundtrip",
+                        "variables": [
+                         {
+                          "name": "reserva_txt",
+                          "value": "NÃO RESERVADO: o horário escolhido ({{trim(first(split(42.reservar; \"|\")))}}, {{lower(trim(last(split(42.reservar; \"|\"))))}}) estava ocupado ou inválido na reconferência. Oferecer outra opção ao cliente."
+                         }
+                        ]
                        }
+                      },
+                      {
+                       "id": 72,
+                       "module": "google-calendar:makeApiCall",
+                       "version": 5,
+                       "parameters": {},
+                       "mapper": {
+                        "url": "/v3/freeBusy",
+                        "method": "POST",
+                        "headers": [
+                         {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                         }
+                        ],
+                        "body": "{\"timeMin\": \"{{formatDate(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeMax\": \"{{formatDate(addHours(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); 1); \"YYYY-MM-DDTHH:mm:ssZ\")}}\", \"timeZone\": \"America/Campo_Grande\", \"items\": [{\"id\": \"primary\"}]}"
+                       },
+                       "metadata": {
+                        "designer": {
+                         "x": 5100,
+                         "y": 0
+                        }
+                       },
+                       "onerror": [
+                        {
+                         "id": 172,
+                         "module": "builtin:Ignore",
+                         "version": 1,
+                         "mapper": null,
+                         "metadata": {
+                          "designer": {
+                           "x": 5100,
+                           "y": 300
+                          }
+                         }
+                        }
+                       ]
+                      },
+                      {
+                       "id": 73,
+                       "module": "builtin:BasicRouter",
+                       "version": 1,
+                       "mapper": null,
+                       "metadata": {
+                        "designer": {
+                         "x": 5400,
+                         "y": 0
+                        }
+                       },
+                       "routes": [
+                        {
+                         "flow": [
+                          {
+                           "id": 74,
+                           "module": "google-calendar:makeApiCall",
+                           "version": 5,
+                           "parameters": {},
+                           "mapper": {
+                            "url": "/v3/calendars/primary/events?conferenceDataVersion=1",
+                            "method": "POST",
+                            "headers": [
+                             {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                             }
+                            ],
+                            "body": "{\"summary\": \"A CONFIRMAR - Consulta online - {{replace(3.nome; /[\"\\\\]/g; \"\")}}\", \"colorId\": \"5\", \"description\": \"Reserva feita pela Elise (WhatsApp). Cliente: {{replace(3.nome; /[\"\\\\]/g; \"\")}} | WhatsApp: +{{3.wa_id}}. Confirme com o cliente e depois retire o A CONFIRMAR do título.\", \"start\": {\"dateTime\": \"{{trim(first(split(42.reservar; \"|\")))}}:00\", \"timeZone\": \"America/Campo_Grande\"}, \"end\": {\"dateTime\": \"{{formatDate(addHours(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); 1); \"YYYY-MM-DDTHH:mm:ss\"; \"America/Campo_Grande\")}}\", \"timeZone\": \"America/Campo_Grande\"}, \"conferenceData\": {\"createRequest\": {\"requestId\": \"elise-{{3.wa_id}}-{{formatDate(now; \"X\")}}\", \"conferenceSolutionKey\": {\"type\": \"hangoutsMeet\"}}}}"
+                           },
+                           "metadata": {
+                            "designer": {
+                             "x": 5700,
+                             "y": 0
+                            }
+                           },
+                           "onerror": [
+                            {
+                             "id": 174,
+                             "module": "builtin:Ignore",
+                             "version": 1,
+                             "mapper": null,
+                             "metadata": {
+                              "designer": {
+                               "x": 5700,
+                               "y": 300
+                              }
+                             }
+                            }
+                           ],
+                           "filter": {
+                            "name": "Livre e on-line",
+                            "conditions": [
+                             [
+                              {
+                               "a": "{{length(72.body.calendars.primary.busy)}}",
+                               "o": "number:equal",
+                               "b": "0"
+                              },
+                              {
+                               "a": "{{lower(trim(last(split(42.reservar; \"|\"))))}}",
+                               "o": "text:contain",
+                               "b": "on"
+                              }
+                             ]
+                            ]
+                           }
+                          },
+                          {
+                           "id": 75,
+                           "module": "util:SetVariables",
+                           "version": 1,
+                           "parameters": {},
+                           "metadata": {
+                            "designer": {
+                             "x": 6000,
+                             "y": 0
+                            }
+                           },
+                           "mapper": {
+                            "scope": "roundtrip",
+                            "variables": [
+                             {
+                              "name": "reserva_txt",
+                              "value": "Reserva A CONFIRMAR criada: {{trim(first(split(42.reservar; \"|\")))}} (on-line). Meet: {{74.body.hangoutLink}}"
+                             }
+                            ]
+                           }
+                          }
+                         ]
+                        },
+                        {
+                         "flow": [
+                          {
+                           "id": 76,
+                           "module": "google-calendar:makeApiCall",
+                           "version": 5,
+                           "parameters": {},
+                           "mapper": {
+                            "url": "/v3/calendars/primary/events",
+                            "method": "POST",
+                            "headers": [
+                             {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                             }
+                            ],
+                            "body": "{\"summary\": \"A CONFIRMAR - Consulta presencial - {{replace(3.nome; /[\"\\\\]/g; \"\")}}\", \"colorId\": \"5\", \"description\": \"Reserva feita pela Elise (WhatsApp). Cliente: {{replace(3.nome; /[\"\\\\]/g; \"\")}} | WhatsApp: +{{3.wa_id}}. Confirme com o cliente e depois retire o A CONFIRMAR do título.\", \"start\": {\"dateTime\": \"{{trim(first(split(42.reservar; \"|\")))}}:00\", \"timeZone\": \"America/Campo_Grande\"}, \"end\": {\"dateTime\": \"{{formatDate(addHours(parseDate(trim(first(split(42.reservar; \"|\"))); \"YYYY-MM-DDTHH:mm\"; \"America/Campo_Grande\"); 1); \"YYYY-MM-DDTHH:mm:ss\"; \"America/Campo_Grande\")}}\", \"timeZone\": \"America/Campo_Grande\"}}"
+                           },
+                           "metadata": {
+                            "designer": {
+                             "x": 6300,
+                             "y": 0
+                            }
+                           },
+                           "onerror": [
+                            {
+                             "id": 176,
+                             "module": "builtin:Ignore",
+                             "version": 1,
+                             "mapper": null,
+                             "metadata": {
+                              "designer": {
+                               "x": 6300,
+                               "y": 300
+                              }
+                             }
+                            }
+                           ],
+                           "filter": {
+                            "name": "Livre e presencial",
+                            "conditions": [
+                             [
+                              {
+                               "a": "{{length(72.body.calendars.primary.busy)}}",
+                               "o": "number:equal",
+                               "b": "0"
+                              },
+                              {
+                               "a": "{{lower(trim(last(split(42.reservar; \"|\"))))}}",
+                               "o": "text:notcontain",
+                               "b": "on"
+                              }
+                             ]
+                            ]
+                           }
+                          },
+                          {
+                           "id": 77,
+                           "module": "util:SetVariables",
+                           "version": 1,
+                           "parameters": {},
+                           "metadata": {
+                            "designer": {
+                             "x": 6600,
+                             "y": 0
+                            }
+                           },
+                           "mapper": {
+                            "scope": "roundtrip",
+                            "variables": [
+                             {
+                              "name": "reserva_txt",
+                              "value": "Reserva A CONFIRMAR criada: {{trim(first(split(42.reservar; \"|\")))}} (presencial)."
+                             }
+                            ]
+                           }
+                          }
+                         ]
+                        }
+                       ]
                       }
                      ]
                     },
                     {
                      "flow": [
                       {
-                       "id": 47,
-                       "module": "google-sheets:addRow",
-                       "version": 2,
+                       "id": 78,
+                       "module": "util:GetVariables",
+                       "version": 1,
                        "parameters": {},
-                       "mapper": {
-                        "mode": "map",
-                        "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
-                        "sheetId": "Conversas",
-                        "tableFirstRow": "A1:Z1",
-                        "valueInputOption": "RAW",
-                        "insertUnformatted": false,
-                        "insertDataOption": "INSERT_ROWS",
-                        "values": {
-                         "0": "{{3.wa_id}}",
-                         "1": "{{3.nome}}",
-                         "2": "{{if(length(44.hist_full) > 6000; substring(44.hist_full; length(44.hist_full) - 6000; length(44.hist_full)); 44.hist_full)}}",
-                         "4": "{{if(length(78.reserva_txt) > 0; \"SIM\"; if(42.encaminhar = \"SIM\"; \"SIM\"; ifempty(4.`4`; \"NAO\")))}}",
-                         "5": "{{if(length(78.reserva_txt) > 0; 78.reserva_txt; if(42.encaminhar = \"SIM\"; 42.motivo; 4.`5`))}}",
-                         "6": "{{if(length(78.reserva_txt) > 0; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); if(42.encaminhar = \"SIM\"; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); 4.`6`))}}",
-                         "7": "NAO",
-                         "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}",
-                         "10": "{{ifempty(62.cpf_valido; 4.`10`)}}",
-                         "11": "{{if(contains(78.reserva_txt; \"criada\"); 78.reserva_txt; 4.`11`)}}"
-                        }
-                       },
                        "metadata": {
                         "designer": {
-                         "x": 7800,
+                         "x": 6900,
                          "y": 0
                         }
                        },
-                       "filter": {
-                        "name": "Cliente novo",
-                        "conditions": [
-                         [
-                          {
-                           "a": "{{4.__ROW_NUMBER__}}",
-                           "o": "notexist"
-                          }
-                         ]
+                       "mapper": {
+                        "variables": [
+                         "reserva_txt"
                         ]
                        }
+                      },
+                      {
+                       "id": 45,
+                       "module": "builtin:BasicRouter",
+                       "version": 1,
+                       "mapper": null,
+                       "metadata": {
+                        "designer": {
+                         "x": 7200,
+                         "y": 0
+                        }
+                       },
+                       "routes": [
+                        {
+                         "flow": [
+                          {
+                           "id": 46,
+                           "module": "google-sheets:updateRow",
+                           "version": 2,
+                           "parameters": {},
+                           "mapper": {
+                            "mode": "map",
+                            "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
+                            "sheetId": "Conversas",
+                            "tableFirstRow": "A1:Z1",
+                            "valueInputOption": "RAW",
+                            "rowNumber": "{{4.__ROW_NUMBER__}}",
+                            "values": {
+                             "0": "{{3.wa_id}}",
+                             "1": "{{3.nome}}",
+                             "2": "{{if(length(44.hist_full) > 6000; substring(44.hist_full; length(44.hist_full) - 6000; length(44.hist_full)); 44.hist_full)}}",
+                             "4": "{{if(length(78.reserva_txt) > 0; \"SIM\"; if(42.encaminhar = \"SIM\"; \"SIM\"; ifempty(4.`4`; \"NAO\")))}}",
+                             "5": "{{if(length(78.reserva_txt) > 0; 78.reserva_txt; if(42.encaminhar = \"SIM\"; 42.motivo; 4.`5`))}}",
+                             "6": "{{if(length(78.reserva_txt) > 0; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); if(42.encaminhar = \"SIM\"; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); 4.`6`))}}",
+                             "7": "NAO",
+                             "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}",
+                             "10": "{{ifempty(62.cpf_valido; 4.`10`)}}",
+                             "11": "{{if(contains(78.reserva_txt; \"criada\"); 78.reserva_txt; 4.`11`)}}"
+                            }
+                           },
+                           "metadata": {
+                            "designer": {
+                             "x": 7500,
+                             "y": 0
+                            }
+                           },
+                           "filter": {
+                            "name": "Cliente já na planilha",
+                            "conditions": [
+                             [
+                              {
+                               "a": "{{4.__ROW_NUMBER__}}",
+                               "o": "exist"
+                              }
+                             ]
+                            ]
+                           }
+                          }
+                         ]
+                        },
+                        {
+                         "flow": [
+                          {
+                           "id": 47,
+                           "module": "google-sheets:addRow",
+                           "version": 2,
+                           "parameters": {},
+                           "mapper": {
+                            "mode": "map",
+                            "spreadsheetId": "16As1XW0a_dos0IhBuy_tnHZJr8F_x9L-EtThbtbSAFo",
+                            "sheetId": "Conversas",
+                            "tableFirstRow": "A1:Z1",
+                            "valueInputOption": "RAW",
+                            "insertUnformatted": false,
+                            "insertDataOption": "INSERT_ROWS",
+                            "values": {
+                             "0": "{{3.wa_id}}",
+                             "1": "{{3.nome}}",
+                             "2": "{{if(length(44.hist_full) > 6000; substring(44.hist_full; length(44.hist_full) - 6000; length(44.hist_full)); 44.hist_full)}}",
+                             "4": "{{if(length(78.reserva_txt) > 0; \"SIM\"; if(42.encaminhar = \"SIM\"; \"SIM\"; ifempty(4.`4`; \"NAO\")))}}",
+                             "5": "{{if(length(78.reserva_txt) > 0; 78.reserva_txt; if(42.encaminhar = \"SIM\"; 42.motivo; 4.`5`))}}",
+                             "6": "{{if(length(78.reserva_txt) > 0; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); if(42.encaminhar = \"SIM\"; formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\"); 4.`6`))}}",
+                             "7": "NAO",
+                             "8": "{{formatDate(now; \"YYYY-MM-DDTHH:mm:ssZ\")}}",
+                             "10": "{{ifempty(62.cpf_valido; 4.`10`)}}",
+                             "11": "{{if(contains(78.reserva_txt; \"criada\"); 78.reserva_txt; 4.`11`)}}"
+                            }
+                           },
+                           "metadata": {
+                            "designer": {
+                             "x": 7800,
+                             "y": 0
+                            }
+                           },
+                           "filter": {
+                            "name": "Cliente novo",
+                            "conditions": [
+                             [
+                              {
+                               "a": "{{4.__ROW_NUMBER__}}",
+                               "o": "notexist"
+                              }
+                             ]
+                            ]
+                           }
+                          }
+                         ]
+                        }
+                       ]
                       }
                      ]
                     }
